@@ -86,6 +86,9 @@ For example, if you want to have at least a 90% chance of getting the drop, ente
     print(Fore.GREEN + f"Number of runs needed: {runs:,}" + Style.RESET_ALL)
     print(Fore.CYAN + f"Total time needed: {int(total_time[0]):02d}:{int(total_time[1]):02d}:{int(total_time[2]):02d}" + Style.RESET_ALL)
     print("\n" * 5)
+    
+    
+    kb.wait('enter')
 
 
 
