@@ -12,7 +12,7 @@ This is a Python-based tool for encrypting and decrypting messages using the **F
 
 
 ## How to use
-
+- open terminal or powershell
 - Messager.exe -genkey
 - Send the key to your friends. When they gen their own key. You can simple change it to that key
 - Messager.exe -encode "Message"
