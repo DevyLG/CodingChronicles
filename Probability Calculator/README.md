@@ -2,6 +2,7 @@
 
 This Python script calculates the number of runs required and the total time needed to achieve a target success probability based on a given drop chance and mission time. It allows you to input your target success chance, drop chance, and mission time (in hours, minutes, and seconds) to estimate how many runs and how much time it will take to achieve your desired success rate.
 
+I could improve this feature. I might make a GUI with a stopwatch, etc. In the future.
 ## Features
 - Calculates the number of runs required to achieve a target success chance.
 - Computes the total time needed based on mission time and number of runs.
