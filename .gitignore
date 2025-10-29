@@ -1,2 +1,4 @@
-token.token
-/.venv/
+# Discord Bot specific ignores
+Discord_Bot/venv/
+Discord_Bot/bot_data.json
+Discord_Bot/token.token

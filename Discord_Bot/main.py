@@ -1,8 +1,12 @@
 import asyncio
+import json
 import discord
 from discord import app_commands
 from discord.ext import commands
-from os import system
+import os
+
+# --- Constants ---
+DATA_FILE = "bot_data.json"
 
 # Bot Token
 with open("token.token", 'r') as f:
@@ -29,9 +33,40 @@ def is_allowed(interaction: discord.Interaction) -> bool:
     ]
     return interaction.user.id in allowed_ids
 
+# --- NEW: Data Persistence Functions ---
+def load_data():
+    """Loads data from the JSON file."""
+    try:
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+            return (
+                set(data.get("voicebanned_members", [])),
+                set(data.get("reddit_mode_channels", [])),
+                set(data.get("smash_or_pass_channels", []))
+            )
+    except (FileNotFoundError, json.JSONDecodeError):
+        # If the file doesn't exist or is empty/corrupt, return empty sets
+        return set(), set(), set()
+
+def save_data(voicebanned, reddit_mode, smash_pass):
+    """Saves data to the JSON file."""
+    with open(DATA_FILE, 'w') as f:
+        # Convert sets to lists for JSON serialization
+        data = {
+            "voicebanned_members": list(voicebanned),
+            "reddit_mode_channels": list(reddit_mode),
+            "smash_or_pass_channels": list(smash_pass)
+        }
+        json.dump(data, f, indent=4)
+
+voicebanned_members, reddit_mode_channels, smash_or_pass_channels = load_data()
+
 @bot.event
 async def on_ready():
-    system('cls')
+    global voicebanned_members, reddit_mode_channels, smash_or_pass_channels
+    voicebanned_members, reddit_mode_channels, smash_or_pass_channels = load_data()
+    
+    os.system('cls' if os.name == 'nt' else 'clear')
     print("")
     print(f"Logged in as: {bot.user}")
     print("=====================================================")
@@ -72,13 +107,13 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         print(f"Unhandled error in command '{interaction.command.name}': {error}")
 
 
-# --- Voice Ban ---
-voicebanned_members = set()
+
 
 @bot.tree.command(name="voiceban", description="Voiceban a member, preventing them from joining VCs.")
 @app_commands.check(is_allowed) # Use the new check
 async def voiceban(interaction: discord.Interaction, member: discord.Member):
     voicebanned_members.add(member.id)
+    save_data(voicebanned_members, reddit_mode_channels, smash_or_pass_channels)
     
     # Kick them if they are already in a VC
     if member.voice and member.voice.channel:
@@ -91,6 +126,7 @@ async def voiceban(interaction: discord.Interaction, member: discord.Member):
 async def unvoiceban(interaction: discord.Interaction, member: discord.Member):
     if member.id in voicebanned_members:
         voicebanned_members.remove(member.id)
+        save_data(voicebanned_members, reddit_mode_channels, smash_or_pass_channels)
         await interaction.response.send_message(f"{member.mention} has been un-voicebanned.", ephemeral=True)
     else:
         await interaction.response.send_message(f"{member.mention} is not currently voicebanned.", ephemeral=True)
@@ -122,8 +158,7 @@ async def purge(interaction: discord.Interaction, amount: int):
 
 
 # --- Channel Modes ---
-reddit_mode_channels = set()
-smash_or_pass_channels = set()
+
 
 @bot.tree.command(name="redditmode", description="Toggles Reddit-style upvote/downvote reactions on messages.")
 @app_commands.check(is_allowed)
@@ -135,6 +170,7 @@ async def redditmode(interaction: discord.Interaction):
     else:
         reddit_mode_channels.add(channel_id)
         await interaction.response.send_message('Reddit mode is now **on** for this channel.')
+    save_data(voicebanned_members, reddit_mode_channels, smash_or_pass_channels)
 
 @bot.tree.command(name="smashorpass", description="Toggles Smash or Pass reactions on images.")
 @app_commands.check(is_allowed)
@@ -146,6 +182,7 @@ async def smashorpass(interaction: discord.Interaction):
     else:
         smash_or_pass_channels.add(channel_id)
         await interaction.response.send_message('Smash or Pass mode is now **on** for this channel.')
+    save_data(voicebanned_members, reddit_mode_channels, smash_or_pass_channels)
 
 
 # --- MERGED on_message Event ---
