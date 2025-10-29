@@ -2,7 +2,7 @@ import argparse
 from os import system, name
 from cryptography import fernet
 from colorama import Fore, init
-import sys  # Add this import to use sys.exit()
+import sys
 
 init(autoreset=True)
 
