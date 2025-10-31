@@ -28,8 +28,7 @@ TEST_GUILD_ID = None # e.g., 123456789012345678
 def is_allowed(interaction: discord.Interaction) -> bool:
     """Checks if the user is one of the allowed bot operators."""
     allowed_ids = [
-        445681610965123082,
-        1089306939252543650
+        0 # Replace with your Discord user ID
     ]
     return interaction.user.id in allowed_ids
 
