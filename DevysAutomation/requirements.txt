@@ -1,5 +1,7 @@
-opencv-python
-mss
-numpy
-pyautogui
-keyboard
+customtkinter==5.2.2
+keyboard==0.13.5
+mss==10.1.0
+numpy==2.3.5
+opencv_python==4.11.0.86
+Pillow==12.0.0
+PyDirectInput==1.0.4
