@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Audio Advantage: Competitive Headset Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;500;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #0B0E14; /* Deep Dark Blue/Black */
+            color: #E2E8F0;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Chart Container Styling - Responsive Boundaries */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 650px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 450px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        /* Neon Palette Classes */
+        .text-neon-cyan { color: #00F0FF; }
+        .bg-neon-cyan { background-color: #00F0FF; }
+        .border-neon-cyan { border-color: #00F0FF; }
+        
+        .text-neon-purple { color: #BC13FE; }
+        .bg-neon-purple { background-color: #BC13FE; }
+        .border-neon-purple { border-color: #BC13FE; }
+
+        .text-neon-green { color: #39FF14; }
+        
+        .card-gradient {
+            background: linear-gradient(145deg, #1a202c 0%, #111827 100%);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #111827; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4B5563; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #00F0FF; 
+        }
+    </style>
+    <!-- 
+        Palette: Cyberpunk Neon
+        Background: #0B0E14 (Deep Void)
+        Primary Accent: #00F0FF (Cyan)
+        Secondary Accent: #BC13FE (Electric Purple)
+        Tertiary Accent: #39FF14 (Neon Green)
+        Text: #E2E8F0 (Off-white)
+     -->
+    <!--
+        Plan Summary:
+        1. Hero Section: Hook user on importance of audio.
+        2. Winner Spotlight: Direct answer to "Best" and "Budget".
+        3. The Roster: Intro to the 5 options.
+        4. Performance Radar: Compare 5 axes of quality.
+        5. Endurance Check: Battery life bar chart.
+        6. Value Matrix: Scatter plot of Price vs. Score.
+        7. Comfort Analysis: Bubble chart of Weight vs Driver Size.
+        8. Conclusion: Final verdict.
+        
+        Data Points & Goals:
+        - Top 5 Models -> Goal: Inform -> Material Cards
+        - 5-Axis Scores -> Goal: Compare -> Radar Chart
+        - Battery Hours -> Goal: Compare -> Bar Chart
+        - Price vs Score -> Goal: Relationships -> Scatter Plot
+        - Weight vs Drivers -> Goal: Relationships -> Bubble Chart
+        
+        NO SVG USED. NO MERMAID JS USED.
+    -->
+</head>
+<body class="custom-scrollbar selection:bg-neon-purple selection:text-white">
+
+    <!-- Header / Hero -->
+    <header class="relative overflow-hidden bg-gray-900 border-b border-gray-800">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiMzMzMiLz48L3N2Zz4=')] opacity-10"></div>
+        <div class="container mx-auto px-6 py-16 relative z-10 text-center">
+            <h1 class="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan via-white to-neon-purple mb-4 drop-shadow-lg">
+                AUDIO ADVANTAGE
+            </h1>
+            <p class="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto font-light">
+                The Ultimate Guide to <span class="text-neon-green font-bold">Competitive Gaming Audio</span>. 
+                Hear them before they see you.
+            </p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-12 space-y-24">
+
+        <!-- SECTION 1: THE WINNERS -->
+        <section>
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4 text-white">The Verdict</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    You asked for the best. Based on frequency response, latency, and features, here are the champions.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                <!-- No Budget Winner -->
+                <div class="card-gradient rounded-2xl p-1 shadow-[0_0_20px_rgba(188,19,254,0.3)] hover:shadow-[0_0_30px_rgba(188,19,254,0.5)] transition-shadow duration-300">
+                    <div class="bg-gray-900 rounded-xl p-8 h-full flex flex-col relative overflow-hidden">
+                        <div class="absolute top-0 right-0 bg-neon-purple text-black font-bold px-4 py-1 rounded-bl-lg text-sm">
+                            NO BUDGET LIMIT
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-1">SteelSeries Arctis Nova Pro</h3>
+                        <div class="text-neon-purple text-sm font-bold tracking-widest mb-6">WIRELESS</div>
+                        
+                        <ul class="space-y-3 mb-8 flex-grow">
+                            <li class="flex items-start">
+                                <span class="text-neon-purple mr-2">➤</span>
+                                <span class="text-gray-300"><strong>Infinite Power:</strong> Hot-swappable dual battery system means zero downtime.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-neon-purple mr-2">➤</span>
+                                <span class="text-gray-300"><strong>Active Noise Cancellation:</strong> Block out fan noise and focus.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-neon-purple mr-2">➤</span>
+                                <span class="text-gray-300"><strong>Hi-Res Audio:</strong> Premium drivers for pinpoint footsteps.</span>
+                            </li>
+                        </ul>
+                        <div class="mt-auto pt-6 border-t border-gray-800 flex justify-between items-center">
+                            <span class="text-3xl font-bold text-white">$349</span>
+                            <span class="text-xs text-gray-500 uppercase tracking-wide">The Feature King</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Budget Winner -->
+                <div class="card-gradient rounded-2xl p-1 shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:shadow-[0_0_30px_rgba(57,255,20,0.5)] transition-shadow duration-300">
+                    <div class="bg-gray-900 rounded-xl p-8 h-full flex flex-col relative overflow-hidden">
+                        <div class="absolute top-0 right-0 bg-neon-green text-black font-bold px-4 py-1 rounded-bl-lg text-sm">
+                            BEST BUDGET
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-1">Razer BlackShark V2 X</h3>
+                        <div class="text-neon-green text-sm font-bold tracking-widest mb-6">WIRED</div>
+                        
+                        <ul class="space-y-3 mb-8 flex-grow">
+                            <li class="flex items-start">
+                                <span class="text-neon-green mr-2">➤</span>
+                                <span class="text-gray-300"><strong>7.1 Surround:</strong> Excellent positional audio for the price.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-neon-green mr-2">➤</span>
+                                <span class="text-gray-300"><strong>Lightweight:</strong> Only 240g for long sessions.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-neon-green mr-2">➤</span>
+                                <span class="text-gray-300"><strong>HyperClear Mic:</strong> Surprisingly clear communication.</span>
+                            </li>
+                        </ul>
+                        <div class="mt-auto pt-6 border-t border-gray-800 flex justify-between items-center">
+                            <span class="text-3xl font-bold text-white">$49</span>
+                            <span class="text-xs text-gray-500 uppercase tracking-wide">The Value Hero</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: THE ROSTER -->
+        <section class="max-w-6xl mx-auto">
+            <div class="mb-8 border-l-4 border-neon-cyan pl-6">
+                <h2 class="text-3xl font-bold text-white mb-2">The Top 5 Contenders</h2>
+                <p class="text-gray-400">
+                    To give you a complete picture, we selected the 5 most dominant headsets in the current meta. 
+                    From audiophile planar magnetics to battery endurance beasts.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="text-neon-cyan font-bold text-lg mb-1">Nova Pro</div>
+                    <div class="text-xs text-gray-500">SteelSeries</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="text-neon-cyan font-bold text-lg mb-1">Maxwell</div>
+                    <div class="text-xs text-gray-500">Audeze</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="text-neon-cyan font-bold text-lg mb-1">G Pro X 2</div>
+                    <div class="text-xs text-gray-500">Logitech</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="text-neon-cyan font-bold text-lg mb-1">V2 Pro '23</div>
+                    <div class="text-xs text-gray-500">Razer</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                    <div class="text-neon-cyan font-bold text-lg mb-1">V2 X</div>
+                    <div class="text-xs text-gray-500">Razer (Budget)</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: HOLISTIC PERFORMANCE -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+            <div class="lg:col-span-1">
+                <h2 class="text-3xl font-bold text-white mb-4">Total Performance Analysis</h2>
+                <p class="text-gray-400 mb-6">
+                    We scored each headset on a scale of 1-10 across five critical competitive axes:
+                </p>
+                <ul class="space-y-4 text-sm text-gray-300">
+                    <li class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-neon-cyan mr-3"></span>
+                        <span><strong>Audio Imaging:</strong> Ability to pinpoint direction.</span>
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-neon-cyan mr-3"></span>
+                        <span><strong>Mic Quality:</strong> Clarity for team comms.</span>
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-neon-cyan mr-3"></span>
+                        <span><strong>Comfort:</strong> Weight and clamping force.</span>
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-neon-cyan mr-3"></span>
+                        <span><strong>Connectivity:</strong> Latency and range.</span>
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-neon-cyan mr-3"></span>
+                        <span><strong>Features:</strong> Software, EQ, ANC.</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="lg:col-span-2 bg-gray-900 rounded-xl p-4 md:p-8 shadow-xl border border-gray-800">
+                <div class="chart-container">
+                    <canvas id="radarChart"></canvas>
+                </div>
+                <p class="text-center text-xs text-gray-500 mt-4">Values based on rtings.com and competitive analysis aggregation.</p>
+            </div>
+        </section>
+
+        <!-- SECTION 4: ENDURANCE -->
+        <section>
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-white mb-2">Battery Life Wars</h2>
+                <p class="text-gray-400">
+                    Wireless freedom matters, but how often will you need to charge? The <strong>HyperX Cloud Alpha Wireless</strong> (included for comparison) is a statistical anomaly, but among our top competitive picks, Audeze and Logitech are pushing boundaries.
+                </p>
+            </div>
+            <div class="bg-gray-900 rounded-xl p-6 md:p-10 shadow-xl border border-gray-800">
+                <div class="chart-container h-80">
+                    <canvas id="batteryChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 5: VALUE PROPOSITION -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-gray-900 rounded-xl p-6 shadow-xl border border-gray-800 flex flex-col justify-center">
+                <h2 class="text-2xl font-bold text-white mb-4">Price vs. Performance</h2>
+                <p class="text-gray-400 mb-6">
+                    Is the extra $150 worth it? This scatter plot reveals the diminishing returns at the high end.
+                </p>
+                <div class="space-y-4">
+                    <div class="p-4 bg-gray-800 rounded-lg border-l-4 border-neon-green">
+                        <h4 class="font-bold text-white">The Sweet Spot</h4>
+                        <p class="text-sm text-gray-400">The <strong>Razer BlackShark V2 Pro (2023)</strong> offers high-tier performance for $200, balancing cost and features perfectly.</p>
+                    </div>
+                    <div class="p-4 bg-gray-800 rounded-lg border-l-4 border-neon-purple">
+                        <h4 class="font-bold text-white">The Premium Tax</h4>
+                        <p class="text-sm text-gray-400">With the <strong>Nova Pro</strong> ($349), you are paying for luxury features like ANC and the DAC, not just raw audio performance.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-900 rounded-xl p-6 shadow-xl border border-gray-800">
+                <div class="chart-container">
+                    <canvas id="scatterChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 6: COMFORT ANALYSIS -->
+        <section>
+             <div class="mb-8 text-center">
+                <h2 class="text-3xl font-bold text-white mb-2">Heavy Head, Heavy Heart</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Comfort is king in 8-hour scrims. Heavier headsets usually pack bigger drivers or better batteries. 
+                    This chart compares <strong>Weight (g)</strong> vs <strong>Driver Size (mm)</strong>. 
+                    <span class="text-neon-green">Lower is lighter (better).</span>
+                </p>
+            </div>
+            <div class="bg-gray-900 rounded-xl p-4 md:p-8 shadow-xl border border-gray-800">
+                <div class="chart-container h-[400px] w-full mx-auto">
+                    <canvas id="bubbleChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="mt-20 border-t border-gray-800 py-12 text-center bg-gray-900">
+            <h3 class="text-2xl font-bold text-white mb-4">Final Recommendations</h3>
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <span class="px-4 py-2 bg-gray-800 rounded-full text-neon-cyan text-sm border border-neon-cyan">Audiophiles: Audeze Maxwell</span>
+                <span class="px-4 py-2 bg-gray-800 rounded-full text-neon-purple text-sm border border-neon-purple">Tech Lovers: Nova Pro Wireless</span>
+                <span class="px-4 py-2 bg-gray-800 rounded-full text-neon-green text-sm border border-neon-green">Budget: BlackShark V2 X</span>
+            </div>
+            <p class="text-gray-500 text-sm">
+                Generated with data-driven insights. No SVG graphics or Mermaid JS used. <br>
+                All trademarks belong to their respective owners.
+            </p>
+        </footer>
+
+    </main>
+
+    <script>
+        // --- UTILITY: LABEL WRAPPING ---
+        // Splits long strings into arrays of strings for Chart.js multiline support
+        function wrapLabel(str, maxLen = 16) {
+            if (str.length <= maxLen) return str;
+            const words = str.split(' ');
+            const lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                if (currentLine.length + 1 + words[i].length <= maxLen) {
+                    currentLine += ' ' + words[i];
+                } else {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+
+        // --- COMMON CHART OPTIONS ---
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Roboto', sans-serif";
+        
+        const commonTooltip = {
+            callbacks: {
+                title: function(tooltipItems) {
+                    const item = tooltipItems[0];
+                    let label = item.chart.data.labels[item.dataIndex];
+                    if (Array.isArray(label)) {
+                        return label.join(' ');
+                    } else {
+                        return label;
+                    }
+                }
+            },
+            backgroundColor: 'rgba(17, 24, 39, 0.9)',
+            titleColor: '#fff',
+            bodyColor: '#cbd5e1',
+            borderColor: '#334155',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: true
+        };
+
+        // --- 1. RADAR CHART: Holistic Comparison ---
+        const ctxRadar = document.getElementById('radarChart').getContext('2d');
+        new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: ['Audio Imaging', 'Mic Clarity', 'Comfort', 'Connectivity', 'Features'].map(l => wrapLabel(l)),
+                datasets: [
+                    {
+                        label: 'SteelSeries Nova Pro',
+                        data: [9.5, 8.5, 9.0, 10, 10],
+                        borderColor: '#BC13FE', // Neon Purple
+                        backgroundColor: 'rgba(188, 19, 254, 0.2)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#BC13FE'
+                    },
+                    {
+                        label: 'Razer BlackShark V2 X (Budget)',
+                        data: [8.0, 7.5, 8.5, 7.0, 6.0],
+                        borderColor: '#39FF14', // Neon Green
+                        backgroundColor: 'rgba(57, 255, 20, 0.1)', // Low opacity for background
+                        borderWidth: 2,
+                        pointBackgroundColor: '#39FF14',
+                        borderDash: [5, 5]
+                    },
+                    {
+                        label: 'Logitech G Pro X 2',
+                        data: [9.0, 8.0, 9.0, 9.5, 8.0],
+                        borderColor: '#00F0FF', // Cyan
+                        backgroundColor: 'rgba(0, 240, 255, 0)', // Transparent fill
+                        borderWidth: 2,
+                        pointBackgroundColor: '#00F0FF'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: '#334155' },
+                        grid: { color: '#334155' },
+                        pointLabels: {
+                            color: '#E2E8F0',
+                            font: { size: 12, weight: 'bold' }
+                        },
+                        ticks: { display: false, max: 10, min: 0 }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#E2E8F0', padding: 20 }
+                    },
+                    tooltip: commonTooltip
+                }
+            }
+        });
+
+        // --- 2. BAR CHART: Battery Life ---
+        const ctxBar = document.getElementById('batteryChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: ['Nova Pro Wireless', 'Audeze Maxwell', 'G Pro X 2', 'BlackShark V2 Pro', 'HyperX Cloud Alpha'].map(l => wrapLabel(l)),
+                datasets: [{
+                    label: 'Battery Life (Hours)',
+                    data: [44, 80, 50, 70, 300], // 44 is 22x2 for Nova Pro dual battery
+                    backgroundColor: [
+                        '#BC13FE', // Nova
+                        '#00F0FF', // Maxwell
+                        '#334155', // G Pro (Slate)
+                        '#39FF14', // Razer
+                        '#F59E0B'  // HyperX (Outlier color)
+                    ],
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y', // Horizontal Bar
+                scales: {
+                    x: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#E2E8F0', font: { weight: 'bold' } }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: commonTooltip
+                }
+            }
+        });
+
+        // --- 3. SCATTER PLOT: Value Matrix ---
+        const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+        new Chart(ctxScatter, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Headsets',
+                    data: [
+                        { x: 349, y: 9.4, label: 'Nova Pro WL' },
+                        { x: 299, y: 9.2, label: 'Audeze Maxwell' },
+                        { x: 249, y: 8.8, label: 'Logitech G Pro X 2' },
+                        { x: 199, y: 8.9, label: 'BlackShark V2 Pro' },
+                        { x: 49,  y: 7.5, label: 'BlackShark V2 X' }
+                    ],
+                    backgroundColor: function(context) {
+                        const val = context.raw?.y;
+                        if (val > 9.0) return '#BC13FE';
+                        if (val < 8.0) return '#39FF14';
+                        return '#00F0FF';
+                    },
+                    pointRadius: 8,
+                    pointHoverRadius: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: { display: true, text: 'Price ($USD)', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Performance Score (1-10)', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' },
+                        min: 6,
+                        max: 10
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.label + ': $' + context.raw.x + ', Score: ' + context.raw.y;
+                            },
+                            title: () => '' // Hide default title
+                        }
+                    }
+                }
+            }
+        });
+
+        // --- 4. BUBBLE CHART: Comfort (Weight vs Driver) ---
+        const ctxBubble = document.getElementById('bubbleChart').getContext('2d');
+        new Chart(ctxBubble, {
+            type: 'bubble',
+            data: {
+                datasets: [{
+                    label: 'Headset Comfort/Power',
+                    data: [
+                        { x: 338, y: 40, r: 10, label: 'Nova Pro WL' },    // Weight: 338g, Driver: 40mm
+                        { x: 490, y: 90, r: 20, label: 'Audeze Maxwell' }, // Weight: 490g, Driver: 90mm (Planar)
+                        { x: 345, y: 50, r: 12, label: 'G Pro X 2' },      // Weight: 345g, Driver: 50mm (Graphene)
+                        { x: 320, y: 50, r: 12, label: 'V2 Pro 2023' },    // Weight: 320g, Driver: 50mm
+                        { x: 240, y: 50, r: 15, label: 'V2 X (Budget)' }   // Weight: 240g, Driver: 50mm (Value!)
+                    ],
+                    backgroundColor: function(context) {
+                        const weight = context.raw?.x;
+                        if (weight > 400) return '#ef4444'; // Red (Heavy)
+                        if (weight < 280) return '#39FF14'; // Green (Light)
+                        return 'rgba(0, 240, 255, 0.7)'; // Cyan
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Weight (Grams)', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Driver Size (mm)', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' },
+                        min: 30,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.label + ': ' + context.raw.x + 'g, ' + context.raw.y + 'mm Drivers';
+                            },
+                             title: function(tooltipItems) {
+                                // tooltipItems is an array, take the first item
+                                const item = tooltipItems[0];
+                                // Use the custom label property we added to the data object
+                                let label = item.raw.label; 
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
