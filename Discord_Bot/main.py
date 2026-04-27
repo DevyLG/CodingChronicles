@@ -272,11 +272,8 @@ async def smashorpass(interaction: discord.Interaction):
 @bot.tree.command(name="roll", description="Rolls dice (e.g. 1d20+5).")
 @app_commands.choices(rule=[app_commands.Choice(name="Normal", value="normal"), app_commands.Choice(name="Advantage", value="adv"), app_commands.Choice(name="Disadvantage", value="dis")])
 async def roll(interaction: discord.Interaction, expression: str, rule: app_commands.Choice[str] = None):
-    # ... (Keep the rest of your roll logic exactly the same) ...
     try:
         roll_type = rule.value if rule else "normal"
-        # ... existing logic ...
-        # (I am hiding the logic here to save space, but keep your existing code inside)
         expression = expression.lower().strip()
         modifier = 0
         
