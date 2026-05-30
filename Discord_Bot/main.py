@@ -562,7 +562,7 @@ async def roll(interaction: discord.Interaction, expression: str, rule: app_comm
         await interaction.response.send_message(embed=embed)
     except ValueError: await interaction.response.send_message("Invalid format.", ephemeral=True)
 
-# --- UPGRADED USERINFO COMMAND ---
+# --- USERINFO COMMAND ---
 @bot.tree.command(name="userinfo", description="Get stats, dates, and avatar for a user.")
 @app_commands.describe(member="The user to view (defaults to you).")
 async def userinfo(interaction: discord.Interaction, member: discord.Member = None):
@@ -630,6 +630,28 @@ async def cleardups(ctx):
     await bot.tree.sync(guild=ctx.guild)
     
     await msg.edit(content="✅ **Duplicates Cleared!**\nIf you still see them, fully restart your Discord app (Ctrl+R).")
+
+
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.command(name="fake_warn", description="Sends a highly official-looking fake warning to a user.")
+@app_commands.describe(user="The user to target.", reason="The reason for the fake warning.")
+async def fake_warn(interaction: discord.Interaction, user: discord.User, reason: str):
+    embed = discord.Embed(
+        title="⚠️ Automated System Warning",
+        color=discord.Color.red(),
+        timestamp=datetime.now()
+    )
+    
+    embed.add_field(name="Target User", value=user.mention, inline=True)
+    embed.add_field(name="Action Taken", value="Formal Warning", inline=True)
+    embed.add_field(name="Reason", value=reason, inline=False)
+    
+    embed.set_footer(text="System Moderation • This action was recorded automatically.")
+    
+    await interaction.response.send_message(embed=embed)
+
+
 
 
 @bot.tree.command(name="help", description="Shows commands.")
