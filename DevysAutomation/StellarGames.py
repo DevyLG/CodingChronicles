@@ -161,7 +161,7 @@ class PixelAutomationApp(ctk.CTk):
         left_col.pack_propagate(False)
 
         # Tabs System inside Left Column
-        self.tabview = ctk.CTkTabview(left_col, width=480, height=650, fg_color=self.color_bg_card, segment_button_selected_color=self.color_accent, segment_button_selected_hover_color="#00D2FF", text_color="white")
+        self.tabview = ctk.CTkTabview(left_col, width=480, height=650, fg_color=self.color_bg_card, segmented_button_selected_color=self.color_accent, segmented_button_selected_hover_color="#00D2FF", text_color="white")
         self.tabview.pack(fill="both", expand=True)
         self.tab_capture = self.tabview.add("1. Create Detectors")
         self.tab_logic = self.tabview.add("2. Rule Sequencing")
