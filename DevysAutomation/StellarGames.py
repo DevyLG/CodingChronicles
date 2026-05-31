@@ -10,6 +10,7 @@ import os
 import keyboard
 import cv2
 import numpy as np
+import random
 
 try:
     import pydirectinput
@@ -32,6 +33,7 @@ class PixelAutomationApp(ctk.CTk):
         self.start_y = 0
         self.rect_id = None
         self.capture_mode = "pixel"
+        self.last_capture_region = None
 
         # 1. Window Setup
         self.title("Stellar Games - Automation Engine Pro")
@@ -115,6 +117,13 @@ class PixelAutomationApp(ctk.CTk):
             text_color="#FFFFFF", progress_color=self.color_accent, command=self.toggle_always_on_top
         )
         self.switch_always_on_top.pack(side="left", padx=10)
+
+        # Anti-Detection: Humanize Mode Switch
+        self.switch_humanize = ctk.CTkSwitch(
+            ctrl_block, text="Humanize (Anti-Cheat)", font=("Arial", 12, "bold"),
+            text_color=self.color_accent, progress_color=self.color_accent
+        )
+        self.switch_humanize.pack(side="left", padx=10)
 
         # 3. Loop Delay Slider
         slider_frame = ctk.CTkFrame(ctrl_block, fg_color="transparent")
@@ -219,7 +228,7 @@ class PixelAutomationApp(ctk.CTk):
         
         self.action_type = ctk.CTkOptionMenu(
             action_selector_row, 
-            values=["Press Key", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)"],
+            values=["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop"],
             width=180, fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a",
             command=self.on_action_type_change
         )
@@ -270,6 +279,38 @@ class PixelAutomationApp(ctk.CTk):
         ctk.CTkLabel(self.frame_action_click_custom, text="Click:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(5, 5))
         self.menu_act_click_custom = ctk.CTkOptionMenu(self.frame_action_click_custom, values=["Left Click", "Right Click", "Double Click"], fg_color="#2b2b3d", button_color="#3a3a52", width=120)
         self.menu_act_click_custom.pack(side="left")
+
+        # Frame F: Mouse Scroll Input
+        self.frame_action_scroll = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_scroll, text="Scroll Amount:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.entry_act_scroll = ctk.CTkEntry(self.frame_action_scroll, placeholder_text="e.g. 100 or -100", width=150, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_scroll.pack(side="left")
+
+        # Frame G: Drag and Drop Input
+        self.frame_action_drag = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_drag, text="From X,Y:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(2, 2))
+        self.entry_act_drag_x1 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="X1", width=40, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_drag_x1.pack(side="left", padx=1)
+        self.entry_act_drag_y1 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="Y1", width=40, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_drag_y1.pack(side="left", padx=1)
+        
+        ctk.CTkButton(
+            self.frame_action_drag, text="Pick A", width=45, height=26,
+            fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 10, "bold"),
+            command=lambda: self.start_overlay("drag_start")
+        ).pack(side="left", padx=3)
+        
+        ctk.CTkLabel(self.frame_action_drag, text="To X,Y:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(2, 2))
+        self.entry_act_drag_x2 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="X2", width=40, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_drag_x2.pack(side="left", padx=1)
+        self.entry_act_drag_y2 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="Y2", width=40, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_drag_y2.pack(side="left", padx=1)
+        
+        ctk.CTkButton(
+            self.frame_action_drag, text="Pick B", width=45, height=26,
+            fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 10, "bold"),
+            command=lambda: self.start_overlay("drag_end")
+        ).pack(side="left", padx=3)
 
         # Bottom Button for Action Builder
         action_btn_row = ctk.CTkFrame(self.action_builder_card, fg_color="transparent")
@@ -376,6 +417,17 @@ class PixelAutomationApp(ctk.CTk):
         self.slider_tolerance.set(20)
         self.slider_tolerance.pack(side="left", fill="x", expand=True, padx=5)
 
+        # Pixel search options row / Invert Match
+        pixel_opts_row = ctk.CTkFrame(pixel_card, fg_color="transparent")
+        pixel_opts_row.pack(fill="x", padx=15, pady=(0, 10))
+        
+        self.checkbox_pixel_invert = ctk.CTkCheckBox(
+            pixel_opts_row, text="Invert Match (Trigger when color is ABSENT / NOT matched)", 
+            font=("Arial", 11), text_color="#FFFFFF",
+            fg_color=self.color_accent, hover_color="#00D2FF"
+        )
+        self.checkbox_pixel_invert.pack(side="left")
+
         # Card B: Image Detector Setup
         image_card = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
         image_card.pack(fill="x", pady=10)
@@ -415,6 +467,24 @@ class PixelAutomationApp(ctk.CTk):
         self.slider_confidence = ctk.CTkSlider(slider_col, from_=0.5, to=1.0, number_of_steps=50, progress_color=self.color_accent, command=self.on_confidence_slider)
         self.slider_confidence.set(0.80)
         self.slider_confidence.pack(fill="x")
+
+        # Image search options row
+        img_opts_row = ctk.CTkFrame(image_card, fg_color="transparent")
+        img_opts_row.pack(fill="x", padx=15, pady=(0, 10))
+        
+        self.checkbox_full_screen = ctk.CTkCheckBox(
+            img_opts_row, text="Full Screen Search (slower, scans entire desktop)", 
+            font=("Arial", 11), text_color="#FFFFFF",
+            fg_color=self.color_accent, hover_color="#00D2FF"
+        )
+        self.checkbox_full_screen.pack(side="left")
+
+        self.checkbox_image_invert = ctk.CTkCheckBox(
+            img_opts_row, text="Invert Match (Trigger when image is ABSENT)", 
+            font=("Arial", 11), text_color="#FFFFFF",
+            fg_color=self.color_accent, hover_color="#00D2FF"
+        )
+        self.checkbox_image_invert.pack(side="left", padx=(20, 0))
 
         # Card C: Saving Profile Registry
         save_card = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
@@ -516,9 +586,11 @@ class PixelAutomationApp(ctk.CTk):
         self.frame_action_wait.pack_forget()
         self.frame_action_click_found.pack_forget()
         self.frame_action_click_custom.pack_forget()
+        self.frame_action_scroll.pack_forget()
+        self.frame_action_drag.pack_forget()
 
         # Show matching input
-        if selected_type == "Press Key":
+        if selected_type in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
             self.frame_action_key.pack(side="left", padx=5)
         elif selected_type == "Type Text":
             self.frame_action_text.pack(side="left", padx=5)
@@ -528,6 +600,10 @@ class PixelAutomationApp(ctk.CTk):
             self.frame_action_click_found.pack(side="left", padx=5)
         elif selected_type == "Click Custom (X,Y)":
             self.frame_action_click_custom.pack(side="left", padx=5)
+        elif selected_type == "Mouse Scroll":
+            self.frame_action_scroll.pack(side="left", padx=5)
+        elif selected_type == "Drag and Drop":
+            self.frame_action_drag.pack(side="left", padx=5)
 
     def on_loop_speed_change(self, val):
         val = int(float(val))
@@ -552,6 +628,176 @@ class PixelAutomationApp(ctk.CTk):
         val = round(float(val), 2)
         self.active_rules[self.selected_rule_index]["confidence"] = val
         self.lbl_editor_param_val.configure(text=f"Match Confidence: {val:.2f}")
+
+    def on_editor_fullscreen_toggle(self, is_fs):
+        if self.selected_rule_index is None: return
+        self.active_rules[self.selected_rule_index]["full_screen"] = is_fs
+
+    def on_editor_invert_toggle(self, is_inv):
+        if self.selected_rule_index is None: return
+        self.active_rules[self.selected_rule_index]["invert_match"] = is_inv
+
+    def show_flash_highlight(self, x, y, width=40, height=40):
+        # Create a tiny borderless green flashing square on screen
+        highlight = ctk.CTkToplevel(self)
+        highlight.attributes("-topmost", True)
+        highlight.overrideredirect(True)
+        # Position it centered around (x, y)
+        hx = int(x - width/2)
+        hy = int(y - height/2)
+        highlight.geometry(f"{width}x{height}+{hx}+{hy}")
+        
+        # Transparent center with a thick neon green border
+        canvas = ctk.CTkCanvas(highlight, width=width, height=height, bg="white", highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+        # Make the background color transparent
+        highlight.config(bg="green")
+        highlight.attributes("-transparentcolor", "white")
+        
+        canvas.create_rectangle(2, 2, width-2, height-2, outline=self.color_success, width=4)
+        
+        # Flash / destroy after 1.5 seconds
+        def destroy_highlight():
+            try: highlight.destroy()
+            except: pass
+            
+        self.after(1500, destroy_highlight)
+
+    def test_selected_detector(self):
+        if self.selected_rule_index is None: return
+        rule = self.active_rules[self.selected_rule_index]
+        
+        self.log_message("Starting diagnostics test for selected detector...", "INFO")
+        
+        # Hide main window briefly to let the test capture the actual screen
+        self.withdraw()
+        self.after(250, lambda: self._run_detector_diagnostics(rule))
+
+    def _run_detector_diagnostics(self, rule):
+        data = rule["data"]
+        found = False
+        found_x, found_y = 0, 0
+        w, h = 40, 40
+        log_type = "INFO"
+        log_msg = ""
+        
+        try:
+            with mss.mss() as sct:
+                # --- PIXEL TYPE ---
+                if data.get("type") == "pixel":
+                    px_x = int(data["x"])
+                    px_y = int(data["y"])
+                    monitor = {"top": px_y, "left": px_x, "width": 1, "height": 1}
+                    img = sct.grab(monitor)
+                    pixel = img.pixel(0, 0)
+                    
+                    target = list(map(int, data["rgb"].split(',')))
+                    tolerance = rule.get("tolerance", data.get("tolerance", 20))
+                    
+                    diff = math.sqrt(sum((a - b) ** 2 for a, b in zip(pixel, target)))
+                    
+                    curr_hex = "#{:02x}{:02x}{:02x}".format(*pixel)
+                    target_hex = "#{:02x}{:02x}{:02x}".format(*target)
+                    
+                    is_invert = rule.get("invert_match", data.get("invert_match", False))
+                    base_found = diff < tolerance
+                    found = not base_found if is_invert else base_found
+                    
+                    found_x, found_y = px_x, px_y
+                    
+                    if found:
+                        log_type = "SUCCESS"
+                        if is_invert:
+                            log_msg = f"Diagnostics: SUCCESS (Inverted)! Color {curr_hex} differs from target {target_hex} (diff: {diff:.1f} >= tolerance {tolerance})."
+                        else:
+                            log_msg = f"Diagnostics: SUCCESS! Color matched {curr_hex} (diff: {diff:.1f} < tolerance {tolerance})."
+                    else:
+                        log_type = "WARNING"
+                        if is_invert:
+                            log_msg = f"Diagnostics: FAILED (Inverted)! Color {curr_hex} is too close to target {target_hex} (diff: {diff:.1f} < tolerance {tolerance})."
+                        else:
+                            log_msg = f"Diagnostics: FAILED! Color is {curr_hex}, expected target {target_hex} (diff: {diff:.1f} >= tolerance {tolerance})."
+                
+                # --- IMAGE TYPE ---
+                elif data.get("type") == "image":
+                    path = data["image_path"]
+                    template = cv2.imread(path, 0)
+                    if template is not None:
+                        th, tw = template.shape
+                        w, h = tw, th
+                        
+                        is_fs = rule.get("full_screen", data.get("full_screen", False))
+                        region = data.get("region")
+                        
+                        if not is_fs and region:
+                            rx1, ry1, rx2, ry2 = region
+                            pad = 10
+                            primary = sct.monitors[1]
+                            px1 = max(primary["left"], rx1 - pad)
+                            py1 = max(primary["top"], ry1 - pad)
+                            px2 = min(primary["left"] + primary["width"], rx2 + pad)
+                            py2 = min(primary["top"] + primary["height"], ry2 + pad)
+                            
+                            monitor = {
+                                "left": int(px1),
+                                "top": int(py1),
+                                "width": int(px2 - px1),
+                                "height": int(py2 - py1)
+                            }
+                            if monitor["width"] < tw or monitor["height"] < th:
+                                monitor = sct.monitors[1]
+                        else:
+                            monitor = sct.monitors[1]
+                            
+                        sct_img = np.array(sct.grab(monitor))
+                        gray_screen = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2GRAY)
+                        res = cv2.matchTemplate(gray_screen, template, cv2.TM_CCOEFF_NORMED)
+                        
+                        confidence = rule.get("confidence", data.get("confidence", 0.8))
+                        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+                        
+                        is_invert = rule.get("invert_match", data.get("invert_match", False))
+                        base_found = max_val >= confidence
+                        found = not base_found if is_invert else base_found
+                        
+                        if base_found:
+                            found_x = int(monitor["left"] + max_loc[0] + tw/2)
+                            found_y = int(monitor["top"] + max_loc[1] + th/2)
+                        else:
+                            if is_invert:
+                                if region:
+                                    found_x = int((region[0] + region[2])/2)
+                                    found_y = int((region[1] + region[3])/2)
+                                else:
+                                    found_x = int(monitor["left"] + monitor["width"]/2)
+                                    found_y = int(monitor["top"] + monitor["height"]/2)
+                            
+                        if found:
+                            log_type = "SUCCESS"
+                            if is_invert:
+                                log_msg = f"Diagnostics: SUCCESS (Inverted)! Image is ABSENT on screen (highest confidence {max_val:.2f} < target {confidence:.2f})."
+                            else:
+                                log_msg = f"Diagnostics: SUCCESS! Image FOUND with confidence {max_val:.2f} (target {confidence:.2f}) at screen center ({found_x}, {found_y})."
+                        else:
+                            log_type = "WARNING"
+                            if is_invert:
+                                log_msg = f"Diagnostics: FAILED (Inverted)! Image is PRESENT on screen (highest confidence {max_val:.2f} >= target {confidence:.2f})."
+                            else:
+                                log_msg = f"Diagnostics: FAILED! Image not found. Highest match confidence was {max_val:.2f} (target {confidence:.2f})."
+                    else:
+                        log_type = "ERROR"
+                        log_msg = f"Diagnostics: Could not load template file '{path}'"
+        except Exception as e:
+            log_type = "ERROR"
+            log_msg = f"Diagnostics: Error during screen check: {e}"
+            
+        # Restore window
+        self.deiconify()
+        self.log_message(log_msg, log_type)
+        
+        # Draw the neon green flashing visual feedback overlay if successful!
+        if found and (log_type == "SUCCESS"):
+            self.show_flash_highlight(found_x, found_y, w, h)
 
     def toggle_always_on_top(self):
         state = self.switch_always_on_top.get()
@@ -657,7 +903,9 @@ class PixelAutomationApp(ctk.CTk):
                 "data": data, 
                 "actions": [],
                 "tolerance": data.get("tolerance", 20),
-                "confidence": data.get("confidence", 0.8)
+                "confidence": data.get("confidence", 0.8),
+                "full_screen": data.get("full_screen", False),
+                "invert_match": data.get("invert_match", False)
             }
             self.active_rules.append(new_rule)
             self.log_message(f"Rule '{filename}' added to sequencing chain.", "SUCCESS")
@@ -774,6 +1022,20 @@ class PixelAutomationApp(ctk.CTk):
             sh_swatch.pack(side="left", padx=5)
             ctk.CTkLabel(color_sw_row, text=f"({rgb_str})", font=("Courier New", 11), text_color=self.color_text_muted).pack(side="left")
 
+            # Invert Match Checkbox for pixel
+            inv_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            inv_row.pack(fill="x", padx=15, pady=2)
+            
+            cur_inv = rule.get("invert_match", rule["data"].get("invert_match", False))
+            edit_inv_cb = ctk.CTkCheckBox(
+                inv_row, text="Invert Match (Trigger when color is ABSENT / NOT matched)", 
+                font=("Arial", 11), text_color="#FFFFFF",
+                fg_color=self.color_accent, hover_color="#00D2FF",
+                command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
+            )
+            edit_inv_cb.set(1 if cur_inv else 0)
+            edit_inv_cb.pack(side="left")
+
             # Tolerance Slider
             slider_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
             slider_row.pack(fill="x", padx=15, pady=(5, 10))
@@ -808,6 +1070,32 @@ class PixelAutomationApp(ctk.CTk):
                 except:
                     pass
 
+            # Full Screen Checkbox inside parameters editor
+            fs_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            fs_row.pack(fill="x", padx=15, pady=2)
+            
+            cur_fs = rule.get("full_screen", rule["data"].get("full_screen", False))
+            
+            edit_fs_cb = ctk.CTkCheckBox(
+                fs_row, text="Full Screen Search", 
+                font=("Arial", 11), text_color="#FFFFFF",
+                fg_color=self.color_accent, hover_color="#00D2FF",
+                command=lambda: self.on_editor_fullscreen_toggle(edit_fs_cb.get() == 1)
+            )
+            edit_fs_cb.set(1 if cur_fs else 0)
+            edit_fs_cb.pack(side="left")
+
+            # Invert Match Checkbox inside parameters editor
+            cur_inv = rule.get("invert_match", rule["data"].get("invert_match", False))
+            edit_inv_cb = ctk.CTkCheckBox(
+                fs_row, text="Invert Match (Trigger when ABSENT)", 
+                font=("Arial", 11), text_color="#FFFFFF",
+                fg_color=self.color_accent, hover_color="#00D2FF",
+                command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
+            )
+            edit_inv_cb.set(1 if cur_inv else 0)
+            edit_inv_cb.pack(side="left", padx=(20, 0))
+
             # Confidence Slider
             slider_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
             slider_row.pack(fill="x", padx=15, pady=(5, 10))
@@ -820,13 +1108,21 @@ class PixelAutomationApp(ctk.CTk):
             edit_conf_slider.set(cur_conf)
             edit_conf_slider.pack(side="left", fill="x", expand=True)
 
+        # Unified Diagnostics / Test Match Button at the bottom of parameters editor
+        ctk.CTkButton(
+            self.frame_editor_params, text="🔍 Test Detector Match", height=32,
+            fg_color="#2b2b3d", hover_color="#3a3a52", border_color=self.color_accent, border_width=1,
+            text_color=self.color_accent, font=("Arial", 12, "bold"), 
+            command=self.test_selected_detector
+        ).pack(fill="x", padx=15, pady=(5, 10))
+
     def add_action_to_rule(self):
         if self.selected_rule_index is None: return
 
         atype = self.action_type.get()
         aval = ""
         
-        if atype == "Press Key":
+        if atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
             aval = self.entry_act_key.get().strip()
             if not aval:
                 self.log_message("Please specify a keyboard key!", "WARNING")
@@ -862,6 +1158,30 @@ class PixelAutomationApp(ctk.CTk):
                 self.log_message("Coordinates must be valid integers!", "WARNING")
                 return
             aval = f"{cx},{cy},{ctype}"
+        elif atype == "Mouse Scroll":
+            aval = self.entry_act_scroll.get().strip()
+            if not aval:
+                self.log_message("Please specify scroll amount!", "WARNING")
+                return
+            try:
+                int(aval)
+            except ValueError:
+                self.log_message("Scroll amount must be a valid integer!", "WARNING")
+                return
+        elif atype == "Drag and Drop":
+            x1 = self.entry_act_drag_x1.get().strip()
+            y1 = self.entry_act_drag_y1.get().strip()
+            x2 = self.entry_act_drag_x2.get().strip()
+            y2 = self.entry_act_drag_y2.get().strip()
+            if not x1 or not y1 or not x2 or not y2:
+                self.log_message("All drag-and-drop coordinates (X1, Y1, X2, Y2) must be filled!", "WARNING")
+                return
+            try:
+                int(x1); int(y1); int(x2); int(y2)
+            except ValueError:
+                self.log_message("Coordinates must be valid integers!", "WARNING")
+                return
+            aval = f"{x1},{y1},{x2},{y2}"
 
         self.active_rules[self.selected_rule_index]["actions"].append({
             "type": atype, "value": aval
@@ -873,6 +1193,11 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_wait.delete(0, "end")
         self.entry_act_cx.delete(0, "end")
         self.entry_act_cy.delete(0, "end")
+        self.entry_act_scroll.delete(0, "end")
+        self.entry_act_drag_x1.delete(0, "end")
+        self.entry_act_drag_y1.delete(0, "end")
+        self.entry_act_drag_x2.delete(0, "end")
+        self.entry_act_drag_y2.delete(0, "end")
         
         self.render_action_list()
         self.log_message(f"Added Action: '{atype} [{aval}]' to sequence.", "SUCCESS")
@@ -897,6 +1222,10 @@ class PixelAutomationApp(ctk.CTk):
         
         if atype == "Press Key":
             return f"🖮  Press Key [{aval}]"
+        elif atype == "Key Down (Hold)":
+            return f"🖮  Hold Key Down [{aval}]"
+        elif atype == "Key Up (Release)":
+            return f"🖮  Release Key [{aval}]"
         elif atype == "Type Text":
             return f"✍  Type Text: \"{aval}\""
         elif atype == "Wait (ms)":
@@ -911,6 +1240,14 @@ class PixelAutomationApp(ctk.CTk):
                 return f"🖱️  {ctype} at ({cx}, {cy})"
             except:
                 return f"🖱️  Click Custom: {aval}"
+        elif atype == "Mouse Scroll":
+            return f"🖱️  Scroll Mouse: {aval}"
+        elif atype == "Drag and Drop":
+            try:
+                parts = aval.split(",")
+                return f"🖱️  Drag ({parts[0]},{parts[1]}) -> ({parts[2]},{parts[3]})"
+            except:
+                return f"🖱️  Drag and Drop: {aval}"
         return f"{atype} [{aval}]"
 
     def render_action_list(self):
@@ -994,7 +1331,9 @@ class PixelAutomationApp(ctk.CTk):
                 "data": rule["data"],
                 "actions": rule["actions"],
                 "tolerance": rule.get("tolerance", 20),
-                "confidence": rule.get("confidence", 0.8)
+                "confidence": rule.get("confidence", 0.8),
+                "full_screen": rule.get("full_screen", rule["data"].get("full_screen", False)),
+                "invert_match": rule.get("invert_match", rule["data"].get("invert_match", False))
             })
             
         try:
@@ -1029,7 +1368,9 @@ class PixelAutomationApp(ctk.CTk):
                     "data": item["data"],
                     "actions": item["actions"],
                     "tolerance": item.get("tolerance", 20),
-                    "confidence": item.get("confidence", 0.8)
+                    "confidence": item.get("confidence", 0.8),
+                    "full_screen": item.get("full_screen", item["data"].get("full_screen", False)),
+                    "invert_match": item.get("invert_match", item["data"].get("invert_match", False))
                 })
                 
             self.selected_rule_index = None
@@ -1076,12 +1417,46 @@ class PixelAutomationApp(ctk.CTk):
     def execute_click(self, button_type, x, y):
         if not pydirectinput: return
         try:
-            if button_type == "Right Click":
-                pydirectinput.rightClick(x, y)
-            elif button_type == "Double Click":
-                pydirectinput.doubleClick(x, y)
+            # Humanize mode: add dynamic random coordinate offset and click hold duration
+            if hasattr(self, 'switch_humanize') and self.switch_humanize.get() == 1:
+                # Random offset between -4 and +4 pixels in both X and Y
+                offset_x = random.randint(-4, 4)
+                offset_y = random.randint(-4, 4)
+                x += offset_x
+                y += offset_y
+                
+                # Organic click-hold time: Sleep between press down and release
+                hold_duration = random.uniform(0.055, 0.125)
+                
+                if button_type == "Right Click":
+                    pydirectinput.mouseDown(x, y, button="right")
+                    time.sleep(hold_duration)
+                    pydirectinput.mouseUp(x, y, button="right")
+                elif button_type == "Double Click":
+                    # Double click: two single clicks with a small random gap
+                    pydirectinput.mouseDown(x, y, button="left")
+                    time.sleep(random.uniform(0.04, 0.08))
+                    pydirectinput.mouseUp(x, y, button="left")
+                    
+                    time.sleep(random.uniform(0.12, 0.18))  # Interval between double clicks
+                    
+                    pydirectinput.mouseDown(x, y, button="left")
+                    time.sleep(random.uniform(0.04, 0.08))
+                    pydirectinput.mouseUp(x, y, button="left")
+                else:
+                    pydirectinput.mouseDown(x, y, button="left")
+                    time.sleep(hold_duration)
+                    pydirectinput.mouseUp(x, y, button="left")
+                    
+                self.log_message(f"Humanized Click at ({x}, {y}) (offset: {offset_x:+d}, {offset_y:+d}px, hold: {int(hold_duration*1000)}ms)", "INFO")
             else:
-                pydirectinput.click(x, y)
+                # Normal instant pixel-perfect click
+                if button_type == "Right Click":
+                    pydirectinput.rightClick(x, y)
+                elif button_type == "Double Click":
+                    pydirectinput.doubleClick(x, y)
+                else:
+                    pydirectinput.click(x, y)
         except Exception as e:
             self.log_message(f"Mouse click simulation failed at ({x}, {y}): {e}", "ERROR")
 
@@ -1131,8 +1506,12 @@ class PixelAutomationApp(ctk.CTk):
                             tolerance = rule.get("tolerance", data.get("tolerance", 20))
                             
                             diff = math.sqrt(sum((a - b) ** 2 for a, b in zip(pixel, target)))
-                            if diff < tolerance:
-                                found = True
+                            
+                            is_invert = rule.get("invert_match", data.get("invert_match", False))
+                            base_found = diff < tolerance
+                            found = not base_found if is_invert else base_found
+                            
+                            if found:
                                 found_x, found_y = px_x, px_y
                         except: 
                             pass
@@ -1140,7 +1519,31 @@ class PixelAutomationApp(ctk.CTk):
                     # --- IMAGE CHECK ---
                     elif data.get('type') == 'image' and 'template' in rule:
                         try:
-                            monitor = sct.monitors[1]
+                            is_fs = rule.get("full_screen", data.get("full_screen", False))
+                            region = data.get("region")
+                            
+                            if not is_fs and region:
+                                rx1, ry1, rx2, ry2 = region
+                                pad = 10
+                                primary = sct.monitors[1]
+                                px1 = max(primary["left"], rx1 - pad)
+                                py1 = max(primary["top"], ry1 - pad)
+                                px2 = min(primary["left"] + primary["width"], rx2 + pad)
+                                py2 = min(primary["top"] + primary["height"], ry2 + pad)
+                                
+                                monitor = {
+                                    "left": int(px1),
+                                    "top": int(py1),
+                                    "width": int(px2 - px1),
+                                    "height": int(py2 - py1)
+                                }
+                                # Safeguard against grabbed image being smaller than template
+                                w, h = rule['size']
+                                if monitor["width"] < w or monitor["height"] < h:
+                                    monitor = sct.monitors[1]
+                            else:
+                                monitor = sct.monitors[1]
+                                
                             sct_img = np.array(sct.grab(monitor))
                             gray_screen = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2GRAY)
                             res = cv2.matchTemplate(gray_screen, rule['template'], cv2.TM_CCOEFF_NORMED)
@@ -1148,13 +1551,24 @@ class PixelAutomationApp(ctk.CTk):
                             confidence = rule.get("confidence", data.get("confidence", 0.8))
                             loc = np.where(res >= confidence) 
                             
-                            if len(loc[0]) > 0:
-                                found = True
-                                pt = list(zip(*loc[::-1]))[0] 
-                                w, h = rule['size']
-                                # Multi-monitor coordinates mapping
-                                found_x = int(monitor["left"] + pt[0] + w/2)
-                                found_y = int(monitor["top"] + pt[1] + h/2)
+                            is_invert = rule.get("invert_match", data.get("invert_match", False))
+                            base_found = len(loc[0]) > 0
+                            found = not base_found if is_invert else base_found
+                            
+                            if found:
+                                if base_found:
+                                    pt = list(zip(*loc[::-1]))[0] 
+                                    w, h = rule['size']
+                                    found_x = int(monitor["left"] + pt[0] + w/2)
+                                    found_y = int(monitor["top"] + pt[1] + h/2)
+                                else:
+                                    # Fallback coordinate centering if image absent
+                                    if region:
+                                        found_x = int((region[0] + region[2])/2)
+                                        found_y = int((region[1] + region[3])/2)
+                                    else:
+                                        found_x = int(monitor["left"] + monitor["width"]/2)
+                                        found_y = int(monitor["top"] + monitor["height"]/2)
                         except: 
                             pass
 
@@ -1171,16 +1585,43 @@ class PixelAutomationApp(ctk.CTk):
                             try:
                                 if atype == "Press Key":
                                     if pydirectinput: 
-                                        pydirectinput.press(aval)
-                                        self.log_message(f"Executed: Pressed Key [{aval}]", "INFO")
+                                        if self.switch_humanize.get() == 1:
+                                            # Simulates holding key down organically
+                                            hold_time = random.uniform(0.045, 0.095)
+                                            pydirectinput.keyDown(aval)
+                                            time.sleep(hold_time)
+                                            pydirectinput.keyUp(aval)
+                                            self.log_message(f"Executed: Pressed Key [{aval}] (hold: {int(hold_time*1000)}ms)", "INFO")
+                                        else:
+                                            pydirectinput.press(aval)
+                                            self.log_message(f"Executed: Pressed Key [{aval}]", "INFO")
                                 
                                 elif atype == "Type Text":
-                                    keyboard.write(str(aval), delay=0.05)
-                                    self.log_message(f"Executed: Typed text sequence: \"{aval}\"", "INFO")
+                                    if self.switch_humanize.get() == 1:
+                                        # Character-by-character typing with organic speed variance and hesitations
+                                        text_str = str(aval)
+                                        for char in text_str:
+                                            if not self.running: break
+                                            keyboard.write(char)
+                                            delay = random.uniform(0.035, 0.110)
+                                            if random.random() < 0.05:
+                                                delay += random.uniform(0.15, 0.3)
+                                            time.sleep(delay)
+                                        self.log_message(f"Executed: Humanized typed text sequence: \"{aval}\"", "INFO")
+                                    else:
+                                        keyboard.write(str(aval), delay=0.05)
+                                        self.log_message(f"Executed: Typed text sequence: \"{aval}\"", "INFO")
                                 
                                 elif atype == "Wait (ms)":
-                                    time.sleep(float(aval) / 1000.0)
-                                    self.log_message(f"Executed: Waited {aval} ms", "INFO")
+                                    wait_val = float(aval)
+                                    if self.switch_humanize.get() == 1:
+                                        # Timing jitter ±15%
+                                        jitter = random.uniform(-0.15, 0.15)
+                                        wait_val = max(10.0, wait_val * (1.0 + jitter))
+                                        self.log_message(f"Executed: Waited {int(wait_val)} ms (jittered from {aval} ms)", "INFO")
+                                    else:
+                                        self.log_message(f"Executed: Waited {aval} ms", "INFO")
+                                    time.sleep(wait_val / 1000.0)
                                 
                                 elif atype == "Click Found Spot":
                                     ctype = aval if aval in ["Left Click", "Right Click", "Double Click"] else "Left Click"
@@ -1196,13 +1637,73 @@ class PixelAutomationApp(ctk.CTk):
                                     if pydirectinput:
                                         self.execute_click(ctype, cx, cy)
                                         self.log_message(f"Executed: {ctype} at Custom Target ({cx}, {cy})", "INFO")
+
+                                elif atype == "Key Down (Hold)":
+                                    if pydirectinput:
+                                        pydirectinput.keyDown(aval)
+                                        self.log_message(f"Executed: Key Down [{aval}]", "INFO")
+
+                                elif atype == "Key Up (Release)":
+                                    if pydirectinput:
+                                        pydirectinput.keyUp(aval)
+                                        self.log_message(f"Executed: Key Up [{aval}]", "INFO")
+
+                                elif atype == "Mouse Scroll":
+                                    if pydirectinput:
+                                        scroll_amt = int(aval)
+                                        pydirectinput.scroll(scroll_amt)
+                                        self.log_message(f"Executed: Mouse Scroll [{scroll_amt}]", "INFO")
+
+                                elif atype == "Drag and Drop":
+                                    if pydirectinput:
+                                        parts = aval.split(",")
+                                        dx1, dy1 = int(parts[0]), int(parts[1])
+                                        dx2, dy2 = int(parts[2]), int(parts[3])
+                                        
+                                        # Humanized smooth drag S-curve timing
+                                        dist = math.hypot(dx2 - dx1, dy2 - dy1)
+                                        steps = max(12, int(dist / 12))
+                                        duration = random.uniform(0.35, 0.65)
+                                        time_step = duration / steps
+                                        
+                                        pydirectinput.moveTo(dx1, dy1)
+                                        time.sleep(random.uniform(0.06, 0.12))
+                                        pydirectinput.mouseDown(dx1, dy1, button="left")
+                                        time.sleep(random.uniform(0.06, 0.12))
+                                        
+                                        for i in range(1, steps + 1):
+                                            t = i / steps
+                                            ease_t = (math.sin((t - 0.5) * math.pi) + 1.0) / 2.0
+                                            curr_x = int(dx1 + (dx2 - dx1) * ease_t)
+                                            curr_y = int(dy1 + (dy2 - dy1) * ease_t)
+                                            
+                                            # Apply S-curve hand tremor deviation in Humanize mode
+                                            if self.switch_humanize.get() == 1:
+                                                curr_x += random.randint(-1, 1)
+                                                curr_y += random.randint(-1, 1)
+                                                
+                                            pydirectinput.moveTo(curr_x, curr_y)
+                                            time.sleep(time_step)
+                                            
+                                        pydirectinput.moveTo(dx2, dy2)
+                                        time.sleep(random.uniform(0.06, 0.12))
+                                        pydirectinput.mouseUp(dx2, dy2, button="left")
+                                        self.log_message(f"Executed: Dragged from ({dx1}, {dy1}) to ({dx2}, {dy2})", "INFO")
                             except Exception as act_ex:
                                 self.log_message(f"Action Execution Error ({atype}): {act_ex}", "ERROR")
                         
                         # Prevent immediate rule multi-trigger overlap
-                        time.sleep(0.5)
+                        if self.switch_humanize.get() == 1:
+                            time.sleep(random.uniform(0.42, 0.58))
+                        else:
+                            time.sleep(0.5)
 
-                time.sleep(loop_interval)
+                if self.switch_humanize.get() == 1:
+                    jitter = random.uniform(-0.15, 0.15)
+                    actual_loop_interval = max(0.01, loop_interval * (1.0 + jitter))
+                else:
+                    actual_loop_interval = loop_interval
+                time.sleep(actual_loop_interval)
                 
         self.log_message("Background automation processing loop stopped.", "ENGINE")
 
@@ -1258,7 +1759,7 @@ class PixelAutomationApp(ctk.CTk):
         # Real-time tracking and zoom magnifiers
         self.canvas.bind("<Motion>", self.on_overlay_mouse_move)
         
-        if self.capture_mode in ["pixel", "coord"]:
+        if self.capture_mode in ["pixel", "coord", "drag_start", "drag_end"]:
             self.canvas.bind("<Button-1>", self.on_overlay_click)
         else:
             self.canvas.bind("<ButtonPress-1>", self.on_drag_start)
@@ -1281,6 +1782,10 @@ class PixelAutomationApp(ctk.CTk):
                 text_str = f"PIXEL COLOR SELECTOR  |  Cursor: ({x}, {y}) | RGB: {rgb[0]},{rgb[1]},{rgb[2]}  |  Click to select. Right-click to cancel."
             elif self.capture_mode == "coord":
                 text_str = f"COORDINATES SELECTOR  |  Cursor Target: ({x}, {y})  |  Click to select click location. Right-click to cancel."
+            elif self.capture_mode == "drag_start":
+                text_str = f"DRAG START SELECTOR  |  Cursor: ({x}, {y})  |  Click to select Drag Start spot. Right-click to cancel."
+            elif self.capture_mode == "drag_end":
+                text_str = f"DRAG END SELECTOR  |  Cursor: ({x}, {y})  |  Click to select Drag End spot. Right-click to cancel."
             else:
                 text_str = f"IMAGE TEMPLATE SELECTOR  |  Drag Start: ({self.start_x}, {self.start_y}) -> Cursor: ({x}, {y})  |  Right-click to cancel."
                 
@@ -1332,6 +1837,9 @@ class PixelAutomationApp(ctk.CTk):
             self.entry_RGB.delete(0, "end"); self.entry_RGB.insert(0, f"{rgb[0]}, {rgb[1]}, {rgb[2]}")
             self.entry_Image.delete(0, "end")
             
+            # Clear last capture region
+            self.last_capture_region = None
+            
             self.update_pixel_preview()
             self.update_image_preview()
             self.log_message(f"Captured pixel coords ({x}, {y}) color: RGB({rgb[0]},{rgb[1]},{rgb[2]})", "SUCCESS")
@@ -1340,6 +1848,16 @@ class PixelAutomationApp(ctk.CTk):
             self.entry_act_cx.delete(0, "end"); self.entry_act_cx.insert(0, str(x))
             self.entry_act_cy.delete(0, "end"); self.entry_act_cy.insert(0, str(y))
             self.log_message(f"Selected Custom Coordinates for click: ({x}, {y})", "SUCCESS")
+            
+        elif self.capture_mode == "drag_start":
+            self.entry_act_drag_x1.delete(0, "end"); self.entry_act_drag_x1.insert(0, str(x))
+            self.entry_act_drag_y1.delete(0, "end"); self.entry_act_drag_y1.insert(0, str(y))
+            self.log_message(f"Selected Drag Start Coordinates: ({x}, {y})", "SUCCESS")
+            
+        elif self.capture_mode == "drag_end":
+            self.entry_act_drag_x2.delete(0, "end"); self.entry_act_drag_x2.insert(0, str(x))
+            self.entry_act_drag_y2.delete(0, "end"); self.entry_act_drag_y2.insert(0, str(y))
+            self.log_message(f"Selected Drag End Coordinates: ({x}, {y})", "SUCCESS")
 
     def on_drag_start(self, event):
         self.start_x, self.start_y = event.x, event.y
@@ -1369,6 +1887,9 @@ class PixelAutomationApp(ctk.CTk):
             self.entry_Image.delete(0, "end"); self.entry_Image.insert(0, filename)
             self.entry_X.delete(0, "end"); self.entry_Y.delete(0, "end"); self.entry_RGB.delete(0, "end")
             
+            # Save the captured region coordinates
+            self.last_capture_region = (x1, y1, x2, y2)
+            
             self.update_pixel_preview()
             self.update_image_preview()
             self.log_message(f"Successfully captured image template and saved to: {filename}", "SUCCESS")
@@ -1386,14 +1907,19 @@ class PixelAutomationApp(ctk.CTk):
             
         image_path = self.entry_Image.get().strip()
         
-        # Verify inputs and create profile metadata
         if image_path:
             conf = round(float(self.slider_confidence.get()), 2)
+            full_screen = self.checkbox_full_screen.get() == 1
+            invert_match = self.checkbox_image_invert.get() == 1
             data = {
                 "type": "image", 
                 "image_path": image_path,
-                "confidence": conf
+                "confidence": conf,
+                "full_screen": full_screen,
+                "invert_match": invert_match
             }
+            if hasattr(self, 'last_capture_region') and self.last_capture_region:
+                data["region"] = list(self.last_capture_region)
         else:
             x_coord = self.entry_X.get().strip()
             y_coord = self.entry_Y.get().strip()
@@ -1404,12 +1930,14 @@ class PixelAutomationApp(ctk.CTk):
                 return
                 
             tol = int(self.slider_tolerance.get())
+            invert_match = self.checkbox_pixel_invert.get() == 1
             data = {
                 "type": "pixel", 
                 "x": x_coord, 
                 "y": y_coord, 
                 "rgb": rgb_val,
-                "tolerance": tol
+                "tolerance": tol,
+                "invert_match": invert_match
             }
             
         try:
@@ -1425,6 +1953,10 @@ class PixelAutomationApp(ctk.CTk):
             self.entry_X.delete(0, "end")
             self.entry_Y.delete(0, "end")
             self.entry_RGB.delete(0, "end")
+            self.last_capture_region = None
+            self.checkbox_full_screen.deselect()
+            self.checkbox_image_invert.deselect()
+            self.checkbox_pixel_invert.deselect()
             self.update_pixel_preview()
             self.update_image_preview()
             
