@@ -152,6 +152,13 @@ class PixelAutomationApp(ctk.CTk):
         )
         self.switch_humanize.pack(side="left", padx=10)
 
+        # Strict Priority Mode Switch (Chimpeon Style)
+        self.switch_strict_priority = ctk.CTkSwitch(
+            ctrl_block, text="Strict Priority (MMO Rotation)", font=("Arial", 12, "bold"),
+            text_color=self.color_accent, progress_color=self.color_accent
+        )
+        self.switch_strict_priority.pack(side="left", padx=10)
+
         # 3. Loop Delay Slider
         slider_frame = ctk.CTkFrame(ctrl_block, fg_color="transparent")
         slider_frame.pack(side="left", padx=10)
@@ -766,16 +773,28 @@ class PixelAutomationApp(ctk.CTk):
         self.profile_dropdown.pack(side="left", fill="x", expand=True, padx=(0, 8))
         
         ctk.CTkButton(
-            row_dropdown, text="↻ Refresh", width=90, height=28,
+            row_dropdown, text="↻ Refresh", width=75, height=28,
             fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 11),
             command=self.refresh_profiles
-        ).pack(side="left", padx=3)
+        ).pack(side="left", padx=2)
         
         ctk.CTkButton(
-            row_dropdown, text="+ Add to Chain", width=120, height=28,
+            row_dropdown, text="+ Add Profile", width=95, height=28,
             fg_color=self.color_success, hover_color="#00C853", text_color="#121214",
             font=("Arial", 11, "bold"), command=self.add_rule_to_list
-        ).pack(side="left", padx=3)
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            row_dropdown, text="+ Timer", width=75, height=28,
+            fg_color="#3B82F6", hover_color="#1D4ED8", text_color="#FFFFFF",
+            font=("Arial", 11, "bold"), command=self.add_timer_rule_to_list
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            row_dropdown, text="+ Always", width=80, height=28,
+            fg_color="#10B981", hover_color="#047857", text_color="#FFFFFF",
+            font=("Arial", 11, "bold"), command=self.add_always_rule_to_list
+        ).pack(side="left", padx=2)
 
         # Active rules list frame
         list_card = ctk.CTkFrame(self.logic_frame, fg_color="#181822", border_color=self.color_border, border_width=1)
@@ -1031,6 +1050,7 @@ class PixelAutomationApp(ctk.CTk):
             "hotkey_toggle": self.hotkey_toggle,
             "humanize_default": self.switch_humanize.get(),
             "always_on_top_default": self.switch_always_on_top.get(),
+            "strict_priority_default": self.switch_strict_priority.get() if hasattr(self, 'switch_strict_priority') else 1,
             "loop_delay_default": self.slider_loop_speed.get()
         }
         try:
@@ -1061,6 +1081,8 @@ class PixelAutomationApp(ctk.CTk):
                 if hasattr(self, "switch_always_on_top"):
                     self.switch_always_on_top.set(data.get("always_on_top_default", 0))
                     self.toggle_always_on_top()
+                if hasattr(self, "switch_strict_priority"):
+                    self.switch_strict_priority.set(data.get("strict_priority_default", 1))
                 if hasattr(self, "slider_loop_speed"):
                     delay = data.get("loop_delay_default", 100)
                     self.slider_loop_speed.set(delay)
@@ -1628,6 +1650,40 @@ class PixelAutomationApp(ctk.CTk):
         except Exception as e:
             self.log_message(f"Error loading rule: {e}", "ERROR")
 
+    def add_timer_rule_to_list(self):
+        new_rule = {
+            "name": f"Timer Action #{len(self.active_rules) + 1}",
+            "data": {
+                "type": "timer"
+            },
+            "actions": [],
+            "cooldown_ms": 1000,
+            "precondition_var": "",
+            "precondition_op": "==",
+            "precondition_val": ""
+        }
+        self.active_rules.append(new_rule)
+        self.log_message(f"Added Timer Trigger to sequencing chain.", "SUCCESS")
+        self.render_rule_list()
+        self.select_rule(len(self.active_rules) - 1)
+
+    def add_always_rule_to_list(self):
+        new_rule = {
+            "name": f"Always Action #{len(self.active_rules) + 1}",
+            "data": {
+                "type": "always"
+            },
+            "actions": [],
+            "cooldown_ms": 100,
+            "precondition_var": "",
+            "precondition_op": "==",
+            "precondition_val": ""
+        }
+        self.active_rules.append(new_rule)
+        self.log_message(f"Added Always Trigger to sequencing chain.", "SUCCESS")
+        self.render_rule_list()
+        self.select_rule(len(self.active_rules) - 1)
+
     def render_rule_list(self):
         for widget in self.rule_scroll.winfo_children():
             widget.destroy()
@@ -1656,6 +1712,16 @@ class PixelAutomationApp(ctk.CTk):
                 circle_bg = "#122340"
                 emoji = "📝"
                 display_name = "OCR"
+            elif rule_type == 'timer':
+                accent_color = "#3B82F6"      # Soft flow blue
+                circle_bg = "#1E3A8A"
+                emoji = "⏳"
+                display_name = "TMR"
+            elif rule_type == 'always':
+                accent_color = "#10B981"      # Soft green
+                circle_bg = "#064E3B"
+                emoji = "🔄"
+                display_name = "ALW"
             else:
                 accent_color = "#9CA3AF"      # Soft gray
                 circle_bg = "#28282D"
@@ -1956,13 +2022,28 @@ class PixelAutomationApp(ctk.CTk):
             else:
                 edit_inv_cb.deselect()
             edit_inv_cb.pack(side="left")
+            
+        elif rule_type == "timer":
+            lbl = ctk.CTkLabel(self.frame_editor_params, text="Type: Time Interval Trigger  |  Triggers actions periodically on a timer.", font=("Arial", 12), text_color=self.color_text_muted)
+            lbl.pack(anchor="w", padx=15, pady=(10, 5))
+            
+        elif rule_type == "always":
+            lbl = ctk.CTkLabel(self.frame_editor_params, text="Type: Always-On Trigger  |  Triggers actions continuously when ready.", font=("Arial", 12), text_color=self.color_text_muted)
+            lbl.pack(anchor="w", padx=15, pady=(10, 5))
 
         # Cooldown Slider / Parameter Row
         cooldown_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
         cooldown_row.pack(fill="x", padx=15, pady=(5, 5))
         
         cur_cooldown = rule.get("cooldown_ms", 0)
-        self.lbl_cooldown_val = ctk.CTkLabel(cooldown_row, text=f"Trigger Cooldown: {cur_cooldown} ms", font=("Arial", 11, "bold"), text_color=self.color_accent, width=170, anchor="w")
+        if rule_type == "timer":
+            lbl_text = f"Trigger Interval: {cur_cooldown} ms"
+        elif rule_type == "always":
+            lbl_text = f"Throttle Delay: {cur_cooldown} ms"
+        else:
+            lbl_text = f"Trigger Cooldown: {cur_cooldown} ms"
+            
+        self.lbl_cooldown_val = ctk.CTkLabel(cooldown_row, text=lbl_text, font=("Arial", 11, "bold"), text_color=self.color_accent, width=170, anchor="w")
         self.lbl_cooldown_val.pack(side="left")
         
         cooldown_slider = ctk.CTkSlider(cooldown_row, from_=0, to=10000, number_of_steps=100, progress_color=self.color_accent, command=self.on_editor_cooldown_slider)
@@ -3004,6 +3085,10 @@ class PixelAutomationApp(ctk.CTk):
                         except:
                             pass
 
+                    # --- TIMER or ALWAYS CHECK ---
+                    elif data.get('type') in ['timer', 'always']:
+                        found = True
+
                     # --- EXECUTE SEQUENCED ACTIONS ---
                     if found and self.running:
                         self.last_trigger_times[rule['name']] = time.time() * 1000.0
@@ -3244,6 +3329,11 @@ class PixelAutomationApp(ctk.CTk):
                             time.sleep(random.uniform(0.42, 0.58))
                         else:
                             time.sleep(0.5)
+
+                        # If Strict Priority mode is enabled, stop scanning lower-priority rules in this cycle
+                        if hasattr(self, 'switch_strict_priority') and self.switch_strict_priority.get() == 1:
+                            self.log_message(f"[Priority Scan] Triggered highest priority action '{rule_name}'. Skipping lower-priority scans for this cycle.", "ENGINE")
+                            break
 
                 if self.switch_humanize.get() == 1:
                     jitter = random.uniform(-0.15, 0.15)
