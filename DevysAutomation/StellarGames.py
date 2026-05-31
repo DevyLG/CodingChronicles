@@ -1,4 +1,6 @@
 import customtkinter as ctk
+import tkinter as tk
+from tkinter import simpledialog
 from PIL import Image, ImageTk, ImageGrab
 import threading
 import time
@@ -41,6 +43,13 @@ class PixelAutomationApp(ctk.CTk):
         
         self.active_rules = [] 
         self.selected_rule_index = None 
+        self.editing_action_index = None 
+        self.inserting_action_index = None
+        self.timeline_view_mode = "Flow"
+        
+        # Initialize default hotkeys before layout construction
+        self.hotkey_stop = "F12"
+        self.hotkey_toggle = "F9"
 
         # Selection Vars
         self.start_x = 0
@@ -51,7 +60,7 @@ class PixelAutomationApp(ctk.CTk):
 
         # 1. Window Setup
         self.title("Stellar Games - Automation Engine Pro")
-        self.geometry("1180x880") 
+        self.geometry("1350x920") 
         self.minsize(1050, 750)
         ctk.set_appearance_mode("Dark")
         
@@ -71,6 +80,10 @@ class PixelAutomationApp(ctk.CTk):
         self.create_main_layout()
         self.create_log_console()
         
+        # Load and bind settings
+        self.load_settings_from_file()
+        self.bind_global_hotkeys()
+
         # Load initially available profiles
         self.refresh_profiles()
         
@@ -188,10 +201,12 @@ class PixelAutomationApp(ctk.CTk):
         self.tabview.pack(fill="both", expand=True)
         self.tab_capture = self.tabview.add("1. Create Detectors")
         self.tab_logic = self.tabview.add("2. Rule Sequencing")
+        self.tab_settings = self.tabview.add("3. Settings")
         
         # Setup content for each tab
         self.setup_capture_tab()
         self.setup_logic_tab()
+        self.setup_settings_tab()
 
         # --- RIGHT COLUMN (Action Sequences & Rule Customization) ---
         right_col = ctk.CTkFrame(self.main_container, fg_color=self.color_bg_card, border_color=self.color_border, border_width=1)
@@ -227,22 +242,27 @@ class PixelAutomationApp(ctk.CTk):
         self.editor_container = ctk.CTkFrame(right_col, fg_color="transparent")
         # Managed dynamically inside select_rule()
 
+        # Horizontal top row container for side-by-side params and builder cards
+        self.editor_top_row = ctk.CTkFrame(self.editor_container, fg_color="transparent")
+        self.editor_top_row.pack(fill="x", padx=15, pady=(5, 5))
+
         # Rule Metadata/Parameters card
-        self.frame_editor_params = ctk.CTkFrame(self.editor_container, fg_color="#181822", border_color=self.color_border, border_width=1)
-        self.frame_editor_params.pack(fill="x", padx=15, pady=10)
+        self.frame_editor_params = ctk.CTkFrame(self.editor_top_row, fg_color="#181822", border_color=self.color_border, border_width=1)
+        self.frame_editor_params.pack(side="left", fill="both", expand=True, padx=(0, 6), pady=5)
 
         # Action Builder Card
-        self.action_builder_card = ctk.CTkFrame(self.editor_container, fg_color="#181822", border_color=self.color_border, border_width=1)
-        self.action_builder_card.pack(fill="x", padx=15, pady=10)
+        self.action_builder_card = ctk.CTkFrame(self.editor_top_row, fg_color="#181822", border_color=self.color_border, border_width=1)
+        self.action_builder_card.pack(side="right", fill="both", expand=True, padx=(6, 0), pady=5)
         
-        ctk.CTkLabel(self.action_builder_card, text="ADD TRIGGERED ACTION", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        self.action_builder_card_title = ctk.CTkLabel(self.action_builder_card, text="ADD TRIGGERED ACTION", font=("Arial", 12, "bold"), text_color=self.color_accent)
+        self.action_builder_card_title.pack(anchor="w", padx=15, pady=(10, 5))
         
         action_selector_row = ctk.CTkFrame(self.action_builder_card, fg_color="transparent")
         action_selector_row.pack(fill="x", padx=15, pady=5)
         
         self.action_type = ctk.CTkOptionMenu(
             action_selector_row, 
-            values=["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop", "Set State Variable"],
+            values=["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop", "Set State Variable", "Sound Alert", "Run Command", "Stop Engine", "Conditional Jump", "GoTo Step"],
             width=180, fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a",
             command=self.on_action_type_change
         )
@@ -284,11 +304,12 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_cy = ctk.CTkEntry(self.frame_action_click_custom, placeholder_text="Y", width=55, fg_color="#0b0b0f", border_color=self.color_border)
         self.entry_act_cy.pack(side="left", padx=2)
         
-        ctk.CTkButton(
+        self.btn_pick_coord = ctk.CTkButton(
             self.frame_action_click_custom, text="Pick Spot", width=75, height=28,
             fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 11, "bold"),
             command=lambda: self.start_overlay("coord")
-        ).pack(side="left", padx=6)
+        )
+        self.btn_pick_coord.pack(side="left", padx=6)
         
         ctk.CTkLabel(self.frame_action_click_custom, text="Click:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(5, 5))
         self.menu_act_click_custom = ctk.CTkOptionMenu(self.frame_action_click_custom, values=["Left Click", "Right Click", "Double Click"], fg_color="#2b2b3d", button_color="#3a3a52", width=120)
@@ -308,11 +329,12 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_drag_y1 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="Y1", width=40, fg_color="#0b0b0f", border_color=self.color_border)
         self.entry_act_drag_y1.pack(side="left", padx=1)
         
-        ctk.CTkButton(
+        self.btn_pick_drag_a = ctk.CTkButton(
             self.frame_action_drag, text="Pick A", width=45, height=26,
             fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 10, "bold"),
             command=lambda: self.start_overlay("drag_start")
-        ).pack(side="left", padx=3)
+        )
+        self.btn_pick_drag_a.pack(side="left", padx=3)
         
         ctk.CTkLabel(self.frame_action_drag, text="To X,Y:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(2, 2))
         self.entry_act_drag_x2 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="X2", width=40, fg_color="#0b0b0f", border_color=self.color_border)
@@ -320,11 +342,12 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_drag_y2 = ctk.CTkEntry(self.frame_action_drag, placeholder_text="Y2", width=40, fg_color="#0b0b0f", border_color=self.color_border)
         self.entry_act_drag_y2.pack(side="left", padx=1)
         
-        ctk.CTkButton(
+        self.btn_pick_drag_b = ctk.CTkButton(
             self.frame_action_drag, text="Pick B", width=45, height=26,
             fg_color="#2b2b3d", hover_color="#3a3a52", font=("Arial", 10, "bold"),
             command=lambda: self.start_overlay("drag_end")
-        ).pack(side="left", padx=3)
+        )
+        self.btn_pick_drag_b.pack(side="left", padx=3)
 
         # Frame H: Set State Variable Input
         self.frame_action_set_var = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
@@ -335,12 +358,53 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_var_val = ctk.CTkEntry(self.frame_action_set_var, placeholder_text="e.g. boss_fight or +1", width=150, fg_color="#0b0b0f", border_color=self.color_border)
         self.entry_act_var_val.pack(side="left", padx=2)
 
+        # Frame I: Sound Alert Input
+        self.frame_action_sound = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_sound, text="Alert Sound:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.menu_act_sound = ctk.CTkOptionMenu(self.frame_action_sound, values=["Beep Chime", "Error Alert", "Success Ding", "Default System Beep"], fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a", width=165)
+        self.menu_act_sound.pack(side="left")
+
+        # Frame J: Run Command Input
+        self.frame_action_command = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_command, text="Command:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.entry_act_command = ctk.CTkEntry(self.frame_action_command, placeholder_text="e.g. notepad.exe, cmd.exe /c start ...", width=220, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_command.pack(side="left")
+
+        # Frame K: Stop Engine Input
+        self.frame_action_stop_engine = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_stop_engine, text="⚠️ Stops the entire automation engine immediately upon trigger.", font=("Segoe UI", 11, "italic"), text_color="#F87171").pack(side="left", padx=5)
+
+        # Frame L: Conditional Jump Input
+        self.frame_action_cond_jump = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_cond_jump, text="If Var:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(0, 2))
+        self.entry_act_jump_var = ctk.CTkEntry(self.frame_action_cond_jump, placeholder_text="e.g. status", width=90, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_jump_var.pack(side="left", padx=2)
+        
+        self.menu_act_jump_op = ctk.CTkOptionMenu(self.frame_action_cond_jump, values=["==", "!=", "<", ">"], width=65, fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a")
+        self.menu_act_jump_op.set("==")
+        self.menu_act_jump_op.pack(side="left", padx=2)
+        
+        ctk.CTkLabel(self.frame_action_cond_jump, text="Val:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(2, 2))
+        self.entry_act_jump_val = ctk.CTkEntry(self.frame_action_cond_jump, placeholder_text="e.g. boss", width=90, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_jump_val.pack(side="left", padx=2)
+        
+        ctk.CTkLabel(self.frame_action_cond_jump, text="➜ Jump Step:", font=("Arial", 11, "bold"), text_color=self.color_accent).pack(side="left", padx=(4, 2))
+        self.entry_act_jump_step = ctk.CTkEntry(self.frame_action_cond_jump, placeholder_text="e.g. 5", width=55, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_jump_step.pack(side="left", padx=2)
+
+        # Frame M: GoTo Step Input
+        self.frame_action_goto = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_goto, text="Always Jump to Step #:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.entry_act_goto_step = ctk.CTkEntry(self.frame_action_goto, placeholder_text="e.g. 1", width=70, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_goto_step.pack(side="left")
+
+
         # Bottom Button for Action Builder
-        action_btn_row = ctk.CTkFrame(self.action_builder_card, fg_color="transparent")
-        action_btn_row.pack(fill="x", padx=15, pady=(5, 10))
+        self.action_btn_row = ctk.CTkFrame(self.action_builder_card, fg_color="transparent")
+        self.action_btn_row.pack(fill="x", padx=15, pady=(5, 10))
         
         ctk.CTkButton(
-            action_btn_row, text="+ Add Action to Sequence", width=180, height=32, 
+            self.action_btn_row, text="+ Add Action to Sequence", width=180, height=32, 
             fg_color=self.color_success, hover_color="#00C853", text_color="#121214",
             font=("Arial", 12, "bold"), command=self.add_action_to_rule
         ).pack(side="right")
@@ -355,16 +419,16 @@ class PixelAutomationApp(ctk.CTk):
         seq_header = ctk.CTkFrame(self.action_sequence_card, fg_color="transparent")
         seq_header.pack(fill="x", padx=15, pady=(10, 5))
         
-        ctk.CTkLabel(seq_header, text="EXECUTED ACTION SEQUENCE TIMELINE", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(side="left")
+        ctk.CTkLabel(seq_header, text="⚡ Timeline Sequence Builder", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(side="left")
         
         self.btn_record = ctk.CTkButton(
-            seq_header, text="🎙️ Record Live Sequence (F10)", width=190, height=26,
+            seq_header, text="🎙️ Record Live Sequence (F10)", width=200, height=28,
             fg_color="#2b2b3d", hover_color="#3a3a52", border_color=self.color_accent, border_width=1,
             font=("Arial", 11, "bold"), command=self.toggle_recording
         )
         self.btn_record.pack(side="right")
 
-        self.action_scroll = ctk.CTkScrollableFrame(self.action_sequence_card, fg_color="#0b0b0f")
+        self.action_scroll = ctk.CTkScrollableFrame(self.action_sequence_card, fg_color="#0e0e15", border_width=1, border_color="#222232")
         self.action_scroll.pack(fill="both", expand=True, padx=15, pady=10)
 
         # Engine controls at the bottom of the column
@@ -726,13 +790,18 @@ class PixelAutomationApp(ctk.CTk):
     # UI COMPONENT: SYSTEM LOG CONSOLE
     # =======================================================
     def create_log_console(self):
-        log_frame = ctk.CTkFrame(self, height=160, fg_color=self.color_bg_card, border_color=self.color_border, border_width=1)
-        log_frame.pack(fill="x", padx=12, pady=(6, 12))
-        log_frame.pack_propagate(False)
+        # Bottom Horizontal Container
+        self.bottom_container = ctk.CTkFrame(self, height=180, fg_color="transparent")
+        self.bottom_container.pack(fill="x", padx=12, pady=(6, 12))
+        self.bottom_container.pack_propagate(False)
+
+        # 1. Left Frame: Live System Log / Console
+        log_frame = ctk.CTkFrame(self.bottom_container, fg_color=self.color_bg_card, border_color=self.color_border, border_width=1)
+        log_frame.pack(side="left", fill="both", expand=True, padx=(0, 6))
 
         # Log Header
         log_header = ctk.CTkFrame(log_frame, fg_color="transparent")
-        log_header.pack(fill="x", padx=15, pady=(5, 0))
+        log_header.pack(fill="x", padx=15, pady=(8, 0))
         
         ctk.CTkLabel(log_header, text="LIVE SYSTEM LOG / CONSOLE", font=("Arial", 11, "bold"), text_color=self.color_accent).pack(side="left")
         
@@ -750,10 +819,324 @@ class PixelAutomationApp(ctk.CTk):
         self.log_textbox.pack(fill="both", expand=True, padx=15, pady=(5, 10))
         self.log_textbox.configure(state="disabled")
 
+        # 2. Right Frame: FSM Variables Dashboard
+        fsm_frame = ctk.CTkFrame(self.bottom_container, width=500, fg_color=self.color_bg_card, border_color=self.color_border, border_width=1)
+        fsm_frame.pack(side="left", fill="both", expand=False, padx=(6, 0))
+        fsm_frame.pack_propagate(False)
+
+        # FSM Header
+        fsm_header = ctk.CTkFrame(fsm_frame, fg_color="transparent")
+        fsm_header.pack(fill="x", padx=15, pady=(8, 0))
+        
+        ctk.CTkLabel(fsm_header, text="🤖 ACTIVE STATE VARIABLES (FSM)", font=("Arial", 11, "bold"), text_color=self.color_accent).pack(side="left")
+        
+        # Header Control Row on Right
+        ctrl_frame = ctk.CTkFrame(fsm_header, fg_color="transparent")
+        ctrl_frame.pack(side="right")
+        
+        ctk.CTkButton(
+            ctrl_frame, text="+ Add Var", width=65, height=20,
+            fg_color="transparent", hover_color="#2b2b3d", text_color=self.color_success,
+            font=("Arial", 10, "bold"), command=self.add_fsm_variable
+        ).pack(side="left", padx=2)
+        
+        ctk.CTkButton(
+            ctrl_frame, text="Reset", width=55, height=20,
+            fg_color="transparent", hover_color="#331414", text_color=self.color_danger,
+            font=("Arial", 10, "bold"), command=self.reset_fsm_variables
+        ).pack(side="left", padx=2)
+
+        # Scrollable FSM Area
+        self.fsm_scroll = ctk.CTkScrollableFrame(fsm_frame, fg_color="#07070a", border_width=1, border_color=self.color_border)
+        self.fsm_scroll.pack(fill="both", expand=True, padx=15, pady=(5, 10))
+
+        # Render FSM dashboard once initially
+        self.render_fsm_dashboard()
+
+    def render_fsm_dashboard(self):
+        if not hasattr(self, "fsm_scroll") or not self.fsm_scroll:
+            return
+            
+        # Clean current children
+        for widget in self.fsm_scroll.winfo_children():
+            widget.destroy()
+            
+        if not self.state_vars:
+            empty_lbl = ctk.CTkLabel(
+                self.fsm_scroll, 
+                text="No active FSM variables.\nVariables created by rule actions will appear here live.",
+                font=("Segoe UI", 11, "italic"), 
+                text_color=self.color_text_muted,
+                justify="center"
+            )
+            empty_lbl.pack(fill="both", expand=True, pady=32)
+            return
+            
+        # Render gorgeous pill badges for each state variable
+        for name, value in sorted(self.state_vars.items()):
+            row = ctk.CTkFrame(self.fsm_scroll, fg_color="#101018", border_width=1, border_color="#222232", height=32, corner_radius=6)
+            row.pack(fill="x", pady=2, padx=4)
+            row.pack_propagate(False)
+            
+            # Variable Name Pill Badge (Amber glow)
+            name_frame = ctk.CTkFrame(row, fg_color="#2D1F3D", border_width=1, border_color="#A78BFA", corner_radius=4, height=20)
+            name_frame.pack(side="left", padx=(8, 4), pady=5)
+            ctk.CTkLabel(name_frame, text=name, font=("Segoe UI", 10, "bold"), text_color="#A78BFA").pack(padx=6, expand=True)
+            
+            # Equal arrow symbol
+            ctk.CTkLabel(row, text="➔", font=("Arial", 11), text_color=self.color_text_muted).pack(side="left", padx=4)
+            
+            # Value Pill Badge (Cyan glow)
+            val_frame = ctk.CTkFrame(row, fg_color="#122340", border_width=1, border_color="#60A5FA", corner_radius=4, height=20)
+            val_frame.pack(side="left", padx=4, pady=5)
+            ctk.CTkLabel(val_frame, text=str(value), font=("Segoe UI", 10, "bold"), text_color="#60A5FA").pack(padx=6, expand=True)
+            
+            # Edit Button (✎)
+            ctk.CTkButton(
+                row, text="✎", width=22, height=22, 
+                fg_color="transparent", hover_color="#2b2b3d", 
+                text_color=self.color_accent, font=("Arial", 10, "bold"),
+                corner_radius=4,
+                command=lambda n=name: self.edit_fsm_variable(n)
+            ).pack(side="right", padx=(2, 6))
+            
+            # Delete Button (✕)
+            ctk.CTkButton(
+                row, text="✕", width=22, height=22, 
+                fg_color="transparent", hover_color="#331414", 
+                text_color=self.color_danger, font=("Arial", 10, "bold"),
+                corner_radius=4,
+                command=lambda n=name: self.delete_fsm_variable(n)
+            ).pack(side="right", padx=(4, 2))
+
+    def delete_fsm_variable(self, name):
+        if name in self.state_vars:
+            del self.state_vars[name]
+            self.log_message(f"Manual Override: Deleted FSM variable '{name}'", "INFO")
+            self.render_fsm_dashboard()
+
+    def edit_fsm_variable(self, name):
+        from tkinter import simpledialog
+        current_val = self.state_vars.get(name, "")
+        new_val = simpledialog.askstring(
+            "Force-Override FSM Variable", 
+            f"Override value for state variable '{name}':",
+            initialvalue=current_val
+        )
+        if new_val is not None:
+            self.state_vars[name] = new_val.strip()
+            self.log_message(f"Manual Override: Set FSM variable '{name}' = '{new_val.strip()}'", "SUCCESS")
+            self.render_fsm_dashboard()
+
+    def add_fsm_variable(self):
+        from tkinter import simpledialog
+        name = simpledialog.askstring("Add FSM Variable", "Enter new state variable name:")
+        if not name: return
+        name = name.strip()
+        if not name: return
+        
+        value = simpledialog.askstring("Add FSM Variable", f"Enter initial value for variable '{name}':")
+        if value is None: return
+        
+        self.state_vars[name] = value.strip()
+        self.log_message(f"Manual Override: Added FSM variable '{name}' = '{value.strip()}'", "SUCCESS")
+        self.render_fsm_dashboard()
+
+    def reset_fsm_variables(self):
+        self.state_vars = {}
+        self.log_message("Manual Override: Cleared all FSM state variables.", "INFO")
+        self.render_fsm_dashboard()
+
+    def setup_settings_tab(self):
+        # Settings Scrollable Area
+        set_scroll = ctk.CTkScrollableFrame(self.tab_settings, fg_color="transparent")
+        set_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # 1. Keyboard Shortcuts Card
+        hk_card = ctk.CTkFrame(set_scroll, fg_color="#181822", border_color=self.color_border, border_width=1, corner_radius=8)
+        hk_card.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(hk_card, text="⌨️ GLOBAL HOTKEY CONTROLS", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        # Toggle Start/Stop Dropdown Row
+        toggle_row = ctk.CTkFrame(hk_card, fg_color="transparent")
+        toggle_row.pack(fill="x", padx=15, pady=6)
+        ctk.CTkLabel(toggle_row, text="Start/Stop Engine Hotkey:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left")
+        
+        self.menu_hotkey_toggle = ctk.CTkOptionMenu(
+            toggle_row, 
+            values=["F9", "F10", "F7", "Scroll Lock", "Pause", "Insert", "Home"], 
+            fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a", width=140
+        )
+        self.menu_hotkey_toggle.set(self.hotkey_toggle)
+        self.menu_hotkey_toggle.pack(side="right")
+        
+        # Emergency Stop Dropdown Row
+        stop_row = ctk.CTkFrame(hk_card, fg_color="transparent")
+        stop_row.pack(fill="x", padx=15, pady=6)
+        ctk.CTkLabel(stop_row, text="Emergency Panic Killswitch:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left")
+        
+        self.menu_hotkey_stop = ctk.CTkOptionMenu(
+            stop_row, 
+            values=["F12", "F11", "F8", "End", "Escape"], 
+            fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a", width=140
+        )
+        self.menu_hotkey_stop.set(self.hotkey_stop)
+        self.menu_hotkey_stop.pack(side="right")
+
+        # 2. General Preferences Card
+        pref_card = ctk.CTkFrame(set_scroll, fg_color="#181822", border_color=self.color_border, border_width=1, corner_radius=8)
+        pref_card.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(pref_card, text="⚙️ ENGINE CORE PREFERENCES", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        ex_lbl = ctk.CTkLabel(
+            pref_card, 
+            text="* Configure default engine states to load automatically on application startup. Settings are stored locally in settings.json.",
+            font=("Segoe UI", 10, "italic"), text_color=self.color_text_muted, justify="left"
+        )
+        ex_lbl.pack(anchor="w", padx=15, pady=(2, 8))
+
+        # Action Button Row at the bottom
+        btn_row = ctk.CTkFrame(set_scroll, fg_color="transparent")
+        btn_row.pack(fill="x", pady=15)
+        
+        ctk.CTkButton(
+            btn_row, text="💾 Save & Apply Settings", height=38,
+            fg_color=self.color_success, hover_color="#00C853", text_color="#121214",
+            font=("Arial", 12, "bold"), command=self.apply_and_save_settings
+        ).pack(fill="x")
+
+    def apply_and_save_settings(self):
+        new_toggle = self.menu_hotkey_toggle.get()
+        new_stop = self.menu_hotkey_stop.get()
+        
+        if new_toggle == new_stop:
+            self.log_message("Start/Stop and Emergency hotkeys cannot be the same key!", "WARNING")
+            return
+            
+        self.hotkey_toggle = new_toggle
+        self.hotkey_stop = new_stop
+        
+        # Re-bind keys
+        self.bind_global_hotkeys()
+        
+        # Save settings to file
+        self.save_settings_to_file()
+
+    def save_settings_to_file(self):
+        import json
+        settings_data = {
+            "hotkey_stop": self.hotkey_stop,
+            "hotkey_toggle": self.hotkey_toggle,
+            "humanize_default": self.switch_humanize.get(),
+            "always_on_top_default": self.switch_always_on_top.get(),
+            "loop_delay_default": self.slider_loop_speed.get()
+        }
+        try:
+            with open("settings.json", "w") as f:
+                json.dump(settings_data, f, indent=4)
+            self.log_message("Settings saved successfully to 'settings.json'", "SUCCESS")
+        except Exception as e:
+            self.log_message(f"Failed to save settings: {e}", "ERROR")
+
+    def load_settings_from_file(self):
+        import json
+        import os
+        
+        # Set default active values
+        self.hotkey_stop = "F12"
+        self.hotkey_toggle = "F9"
+        
+        if os.path.exists("settings.json"):
+            try:
+                with open("settings.json", "r") as f:
+                    data = json.load(f)
+                self.hotkey_stop = data.get("hotkey_stop", "F12")
+                self.hotkey_toggle = data.get("hotkey_toggle", "F9")
+                
+                # Apply defaults to switches if UI is created
+                if hasattr(self, "switch_humanize"):
+                    self.switch_humanize.set(data.get("humanize_default", 1))
+                if hasattr(self, "switch_always_on_top"):
+                    self.switch_always_on_top.set(data.get("always_on_top_default", 0))
+                    self.toggle_always_on_top()
+                if hasattr(self, "slider_loop_speed"):
+                    delay = data.get("loop_delay_default", 100)
+                    self.slider_loop_speed.set(delay)
+                    self.on_loop_speed_change(delay)
+                if hasattr(self, "menu_hotkey_stop"):
+                    self.menu_hotkey_stop.set(self.hotkey_stop)
+                if hasattr(self, "menu_hotkey_toggle"):
+                    self.menu_hotkey_toggle.set(self.hotkey_toggle)
+            except Exception as e:
+                print("Failed to load settings.json:", e)
+
+    def bind_global_hotkeys(self):
+        import keyboard
+        # Clear existing hotkeys first to prevent duplicates
+        try:
+            keyboard.clear_all_hotkeys()
+        except:
+            pass
+            
+        try:
+            keyboard.add_hotkey(self.hotkey_stop, self.emergency_stop_from_hotkey)
+            keyboard.add_hotkey(self.hotkey_toggle, self.toggle_automation_from_hotkey)
+            self.log_message(f"Bound global hotkeys: [Stop: {self.hotkey_stop}] [Toggle: {self.hotkey_toggle}]", "SUCCESS")
+        except Exception as e:
+            self.log_message(f"Failed to bind global hotkeys: {e}", "WARNING")
+
     # =======================================================
     # CORE INTERACTION LOGIC
     # =======================================================
+    def apply_action_builder_theme(self, atype):
+        # Determine dynamic colors based on the active selection category
+        if atype in ["Wait (ms)", "Sound Alert"]:
+            theme_color = "#FBBF24"      # Soft amber
+            hover_color = "#D97706"
+        elif atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text"]:
+            theme_color = "#A78BFA"      # Soft purple
+            hover_color = "#7C3AED"
+        elif atype in ["Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop"]:
+            theme_color = "#34D399"      # Soft emerald green
+            hover_color = "#059669"
+        elif atype == "Set State Variable":
+            theme_color = "#F472B6"      # Soft pink
+            hover_color = "#DB2777"
+        elif atype == "Run Command":
+            theme_color = "#60A5FA"      # Soft sky blue
+            hover_color = "#2563EB"
+        elif atype == "Stop Engine":
+            theme_color = "#F87171"      # Soft danger red
+            hover_color = "#E11D48"
+        elif atype in ["Conditional Jump", "GoTo Step"]:
+            theme_color = "#3B82F6"      # Soft flow blue
+            hover_color = "#1D4ED8"
+        else:
+            theme_color = self.color_accent
+            hover_color = "#00D2FF"
+
+        # Apply gorgeous theme glow to card border
+        self.action_builder_card.configure(border_color=theme_color)
+        
+        # Sync dynamic colors to picker buttons/menus inside the card
+        self.action_type.configure(button_color=theme_color, button_hover_color=hover_color)
+        
+        if hasattr(self, "btn_pick_coord") and self.btn_pick_coord:
+            self.btn_pick_coord.configure(hover_color=theme_color)
+        if hasattr(self, "btn_pick_drag_a") and self.btn_pick_drag_a:
+            self.btn_pick_drag_a.configure(hover_color=theme_color)
+        if hasattr(self, "btn_pick_drag_b") and self.btn_pick_drag_b:
+            self.btn_pick_drag_b.configure(hover_color=theme_color)
+            
+        # Dynamically color the text label of the builder card!
+        self.action_builder_card_title.configure(text_color=theme_color)
+
     def on_action_type_change(self, selected_type):
+        # Apply theme styling
+        self.apply_action_builder_theme(selected_type)
+
         # Hide all inputs
         self.frame_action_key.pack_forget()
         self.frame_action_text.pack_forget()
@@ -763,6 +1146,11 @@ class PixelAutomationApp(ctk.CTk):
         self.frame_action_scroll.pack_forget()
         self.frame_action_drag.pack_forget()
         self.frame_action_set_var.pack_forget()
+        self.frame_action_sound.pack_forget()
+        self.frame_action_command.pack_forget()
+        self.frame_action_stop_engine.pack_forget()
+        self.frame_action_cond_jump.pack_forget()
+        self.frame_action_goto.pack_forget()
 
         # Show matching input
         if selected_type in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
@@ -781,6 +1169,16 @@ class PixelAutomationApp(ctk.CTk):
             self.frame_action_drag.pack(side="left", padx=5)
         elif selected_type == "Set State Variable":
             self.frame_action_set_var.pack(side="left", padx=5)
+        elif selected_type == "Sound Alert":
+            self.frame_action_sound.pack(side="left", padx=5)
+        elif selected_type == "Run Command":
+            self.frame_action_command.pack(side="left", padx=5)
+        elif selected_type == "Stop Engine":
+            self.frame_action_stop_engine.pack(side="left", padx=5)
+        elif selected_type == "Conditional Jump":
+            self.frame_action_cond_jump.pack(side="left", padx=5)
+        elif selected_type == "GoTo Step":
+            self.frame_action_goto.pack(side="left", padx=5)
 
     def on_loop_speed_change(self, val):
         val = int(float(val))
@@ -805,6 +1203,12 @@ class PixelAutomationApp(ctk.CTk):
         val = round(float(val), 2)
         self.active_rules[self.selected_rule_index]["confidence"] = val
         self.lbl_editor_param_val.configure(text=f"Match Confidence: {val:.2f}")
+
+    def on_editor_cooldown_slider(self, val):
+        if self.selected_rule_index is None: return
+        val = int(float(val))
+        self.active_rules[self.selected_rule_index]["cooldown_ms"] = val
+        self.lbl_cooldown_val.configure(text=f"Trigger Cooldown: {val} ms")
 
     def on_editor_fullscreen_toggle(self, is_fs):
         if self.selected_rule_index is None: return
@@ -904,7 +1308,10 @@ class PixelAutomationApp(ctk.CTk):
                 
                 # --- IMAGE TYPE ---
                 elif data.get("type") == "image":
-                    path = data["image_path"]
+                    path = data.get("image_path")
+                    if not path or not os.path.exists(path):
+                        self.log_message("Diagnostics: FAILED! Image path is empty or file does not exist.", "ERROR")
+                        return
                     template = cv2.imread(path, 0)
                     if template is not None:
                         th, tw = template.shape
@@ -1226,18 +1633,59 @@ class PixelAutomationApp(ctk.CTk):
             widget.destroy()
 
         for index, rule in enumerate(self.active_rules):
-            row = ctk.CTkFrame(self.rule_scroll, fg_color="#181824" if self.selected_rule_index == index else "#111116", border_width=1, border_color=self.color_accent if self.selected_rule_index == index else self.color_border)
-            row.pack(fill="x", pady=4, padx=5)
+            rule_type = rule['data'].get('type', 'pixel')
             
-            btn_text = f"{index+1}. {os.path.basename(rule['name'])}"
-            rule_type = rule['data'].get('type')
-
-            # Render mini previews inside the sequence list
-            swatch_container = ctk.CTkFrame(row, width=20, height=20, fg_color="transparent")
-            swatch_container.pack(side="left", padx=5)
-            
+            # Determine color theme, badges, and icon emojis based on detector category
             if rule_type == 'pixel':
-                btn_text += " (PXL)"
+                accent_color = "#FBBF24"      # Soft amber
+                circle_bg = "#382A0F"
+                emoji = "🎨"
+                display_name = "PXL"
+            elif rule_type == 'image':
+                accent_color = "#34D399"      # Soft emerald green
+                circle_bg = "#133827"
+                emoji = "🖼️"
+                display_name = "IMG"
+            elif rule_type == 'hsv':
+                accent_color = "#F472B6"      # Soft pink
+                circle_bg = "#3A1929"
+                emoji = "🌈"
+                display_name = "HSV"
+            elif rule_type == 'ocr':
+                accent_color = "#60A5FA"      # Soft sky blue
+                circle_bg = "#122340"
+                emoji = "📝"
+                display_name = "OCR"
+            else:
+                accent_color = "#9CA3AF"      # Soft gray
+                circle_bg = "#28282D"
+                emoji = "⚙️"
+                display_name = "DET"
+
+            is_selected = (self.selected_rule_index == index)
+            card_border_color = self.color_accent if is_selected else self.color_border
+            card_fg_color = "#1d1d2b" if is_selected else "#111116"
+            card_border_w = 2 if is_selected else 1
+
+            row = ctk.CTkFrame(
+                self.rule_scroll, 
+                fg_color=card_fg_color, 
+                border_width=card_border_w, 
+                border_color=card_border_color,
+                height=40,
+                corner_radius=8
+            )
+            row.pack(fill="x", pady=3, padx=5)
+            row.pack_propagate(False)
+            
+            # 1. Rounded Circle Icon Capsule
+            icon_frame = ctk.CTkFrame(row, width=24, height=24, corner_radius=12, fg_color=circle_bg, border_width=1, border_color=accent_color)
+            icon_frame.pack(side="left", padx=(8, 4))
+            icon_frame.pack_propagate(False)
+            ctk.CTkLabel(icon_frame, text=emoji, font=("Arial", 11), text_color="#FFFFFF").pack(expand=True)
+            
+            # 2. Glowing actual color preview swatch for Pixel detectors
+            if rule_type == 'pixel':
                 rgb_str = rule['data'].get('rgb', '255,255,255')
                 try:
                     rgb = [int(c.strip()) for c in rgb_str.split(",")]
@@ -1245,28 +1693,32 @@ class PixelAutomationApp(ctk.CTk):
                 except:
                     hex_color = "#FFFFFF"
                 
-                mini_preview = ctk.CTkFrame(swatch_container, width=12, height=12, corner_radius=3, fg_color=hex_color)
-                mini_preview.pack(pady=4)
-            else:
-                btn_text += " (IMG)"
-                mini_preview = ctk.CTkFrame(swatch_container, width=12, height=12, corner_radius=3, fg_color=self.color_accent)
-                mini_preview.pack(pady=4)
+                color_dot = ctk.CTkFrame(row, width=10, height=10, corner_radius=5, fg_color=hex_color, border_width=1, border_color="#ffffff")
+                color_dot.pack(side="left", padx=(4, 2))
 
-            cmd = lambda i=index: self.select_rule(i)
+            # 3. Rule Name button trigger
+            btn_text = f"{index+1}. {os.path.basename(rule['name'])}"
             ctk.CTkButton(
                 row, text=btn_text, anchor="w", fg_color="transparent", 
-                text_color=self.color_accent if self.selected_rule_index == index else "#FFFFFF",
-                font=("Arial", 12, "bold" if self.selected_rule_index == index else "normal"),
-                hover_color="#1c1c28", command=cmd
-            ).pack(side="left", fill="x", expand=True)
+                text_color="#FFFFFF" if is_selected else self.color_text_muted,
+                font=("Segoe UI", 11, "bold" if is_selected else "normal"),
+                hover_color=card_fg_color, 
+                command=lambda i=index: self.select_rule(i)
+            ).pack(side="left", fill="both", expand=True, padx=4)
 
-            del_cmd = lambda i=index: self.delete_rule(i)
+            # 4. Detector type Pill Badge on right
+            pill = ctk.CTkFrame(row, fg_color=circle_bg, border_width=1, border_color=accent_color, corner_radius=8, height=16)
+            pill.pack(side="right", padx=(2, 4))
+            ctk.CTkLabel(pill, text=display_name, font=("Segoe UI", 8, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+
+            # 5. Dynamic Delete button
             ctk.CTkButton(
-                row, text="✕", width=25, height=25, 
+                row, text="✕", width=22, height=22, 
                 fg_color="transparent", hover_color=self.color_danger, 
-                text_color=self.color_danger, font=("Arial", 12, "bold"),
-                command=del_cmd
-            ).pack(side="right", padx=5)
+                text_color=self.color_danger, font=("Arial", 10, "bold"),
+                corner_radius=5,
+                command=lambda i=index: self.delete_rule(i)
+            ).pack(side="right", padx=(4, 6))
 
     def delete_rule(self, index):
         removed = self.active_rules.pop(index)
@@ -1284,6 +1736,10 @@ class PixelAutomationApp(ctk.CTk):
 
     def select_rule(self, index):
         self.selected_rule_index = index
+        self.editing_action_index = None
+        self.inserting_action_index = None
+        self.clear_action_builder_entries()
+        self.update_action_builder_edit_mode_ui()
         self.render_rule_list()
         
         # Switch frames
@@ -1340,7 +1796,10 @@ class PixelAutomationApp(ctk.CTk):
                 fg_color=self.color_accent, hover_color="#00D2FF",
                 command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
             )
-            edit_inv_cb.set(1 if cur_inv else 0)
+            if cur_inv:
+                edit_inv_cb.select()
+            else:
+                edit_inv_cb.deselect()
             edit_inv_cb.pack(side="left")
 
             # Tolerance Slider
@@ -1357,7 +1816,9 @@ class PixelAutomationApp(ctk.CTk):
             
         elif rule_type == "image":
             # Image template path
-            path_lbl = ctk.CTkLabel(self.frame_editor_params, text=f"Type: Image Template Search  |  Template: {os.path.basename(rule['data'].get('image_path'))}", font=("Arial", 12), text_color=self.color_text_muted)
+            image_path = rule['data'].get('image_path')
+            img_name = os.path.basename(image_path) if image_path else "None"
+            path_lbl = ctk.CTkLabel(self.frame_editor_params, text=f"Type: Image Template Search  |  Template: {img_name}", font=("Arial", 12), text_color=self.color_text_muted)
             path_lbl.pack(anchor="w", padx=15, pady=(10, 2))
             
             # Thumbnail Preview
@@ -1389,19 +1850,28 @@ class PixelAutomationApp(ctk.CTk):
                 fg_color=self.color_accent, hover_color="#00D2FF",
                 command=lambda: self.on_editor_fullscreen_toggle(edit_fs_cb.get() == 1)
             )
-            edit_fs_cb.set(1 if cur_fs else 0)
+            if cur_fs:
+                edit_fs_cb.select()
+            else:
+                edit_fs_cb.deselect()
             edit_fs_cb.pack(side="left")
 
             # Invert Match Checkbox inside parameters editor
+            inv_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            inv_row.pack(fill="x", padx=15, pady=2)
+            
             cur_inv = rule.get("invert_match", rule["data"].get("invert_match", False))
             edit_inv_cb = ctk.CTkCheckBox(
-                fs_row, text="Invert Match (Trigger when ABSENT)", 
+                inv_row, text="Invert Match (Trigger when ABSENT)", 
                 font=("Arial", 11), text_color="#FFFFFF",
                 fg_color=self.color_accent, hover_color="#00D2FF",
                 command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
             )
-            edit_inv_cb.set(1 if cur_inv else 0)
-            edit_inv_cb.pack(side="left", padx=(20, 0))
+            if cur_inv:
+                edit_inv_cb.select()
+            else:
+                edit_inv_cb.deselect()
+            edit_inv_cb.pack(side="left")
 
             # Confidence Slider
             slider_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
@@ -1437,7 +1907,10 @@ class PixelAutomationApp(ctk.CTk):
                 fg_color=self.color_accent, hover_color="#00D2FF",
                 command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
             )
-            edit_inv_cb.set(1 if cur_inv else 0)
+            if cur_inv:
+                edit_inv_cb.select()
+            else:
+                edit_inv_cb.deselect()
             edit_inv_cb.pack(side="left")
             
             slider_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
@@ -1478,8 +1951,23 @@ class PixelAutomationApp(ctk.CTk):
                 fg_color=self.color_accent, hover_color="#00D2FF",
                 command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
             )
-            edit_inv_cb.set(1 if cur_inv else 0)
+            if cur_inv:
+                edit_inv_cb.select()
+            else:
+                edit_inv_cb.deselect()
             edit_inv_cb.pack(side="left")
+
+        # Cooldown Slider / Parameter Row
+        cooldown_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+        cooldown_row.pack(fill="x", padx=15, pady=(5, 5))
+        
+        cur_cooldown = rule.get("cooldown_ms", 0)
+        self.lbl_cooldown_val = ctk.CTkLabel(cooldown_row, text=f"Trigger Cooldown: {cur_cooldown} ms", font=("Arial", 11, "bold"), text_color=self.color_accent, width=170, anchor="w")
+        self.lbl_cooldown_val.pack(side="left")
+        
+        cooldown_slider = ctk.CTkSlider(cooldown_row, from_=0, to=10000, number_of_steps=100, progress_color=self.color_accent, command=self.on_editor_cooldown_slider)
+        cooldown_slider.set(cur_cooldown)
+        cooldown_slider.pack(side="left", fill="x", expand=True)
 
         # Preconditions Sub-Card
         fsm_lbl_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
@@ -1594,11 +2082,57 @@ class PixelAutomationApp(ctk.CTk):
                 self.log_message("Variable name and value cannot contain '='!", "WARNING")
                 return
             aval = f"{var_name}={var_val}"
+        elif atype == "Sound Alert":
+            aval = self.menu_act_sound.get()
+        elif atype == "Run Command":
+            aval = self.entry_act_command.get().strip()
+            if not aval:
+                self.log_message("Please specify a command to run!", "WARNING")
+                return
+        elif atype == "Stop Engine":
+            aval = "Stop"
+        elif atype == "Conditional Jump":
+            var_name = self.entry_act_jump_var.get().strip()
+            op = self.menu_act_jump_op.get()
+            val = self.entry_act_jump_val.get().strip()
+            target_step = self.entry_act_jump_step.get().strip()
+            if not var_name or not val or not target_step:
+                self.log_message("Please fill out all Conditional Jump fields!", "WARNING")
+                return
+            if ";" in var_name or ";" in val or ";" in target_step:
+                self.log_message("Inputs cannot contain ';' separator!", "WARNING")
+                return
+            try:
+                int(target_step)
+            except ValueError:
+                self.log_message("Target step must be a valid integer!", "WARNING")
+                return
+            aval = f"{var_name};{op};{val};{target_step}"
+        elif atype == "GoTo Step":
+            target_step = self.entry_act_goto_step.get().strip()
+            if not target_step:
+                self.log_message("Please specify the target step to jump to!", "WARNING")
+                return
+            try:
+                int(target_step)
+            except ValueError:
+                self.log_message("Target step must be a valid integer!", "WARNING")
+                return
+            aval = target_step
 
-        self.active_rules[self.selected_rule_index]["actions"].append({
-            "type": atype, "value": aval
-        })
-        
+        if getattr(self, "inserting_action_index", None) is not None:
+            self.active_rules[self.selected_rule_index]["actions"].insert(self.inserting_action_index, {
+                "type": atype, "value": aval
+            })
+            inserted_idx = self.inserting_action_index
+            self.inserting_action_index = None
+            log_msg = f"Inserted Action: '{atype} [{aval}]' at Step #{inserted_idx + 1}."
+        else:
+            self.active_rules[self.selected_rule_index]["actions"].append({
+                "type": atype, "value": aval
+            })
+            log_msg = f"Added Action: '{atype} [{aval}]' to sequence."
+            
         # Clear fields
         self.entry_act_key.delete(0, "end")
         self.entry_act_text.delete(0, "end")
@@ -1612,9 +2146,14 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_drag_y2.delete(0, "end")
         self.entry_act_var_name.delete(0, "end")
         self.entry_act_var_val.delete(0, "end")
+        self.entry_act_command.delete(0, "end")
+        self.entry_act_jump_var.delete(0, "end")
+        self.entry_act_jump_val.delete(0, "end")
+        self.entry_act_jump_step.delete(0, "end")
+        self.entry_act_goto_step.delete(0, "end")
         
         self.render_action_list()
-        self.log_message(f"Added Action: '{atype} [{aval}]' to sequence.", "SUCCESS")
+        self.log_message(log_msg, "SUCCESS")
 
     def move_action_up(self, index):
         if self.selected_rule_index is None: return
@@ -1635,15 +2174,15 @@ class PixelAutomationApp(ctk.CTk):
         aval = act["value"]
         
         if atype == "Press Key":
-            return f"🖮  Press Key [{aval}]"
+            return f"⌨️  Press Key: '{aval}'"
         elif atype == "Key Down (Hold)":
-            return f"🖮  Hold Key Down [{aval}]"
+            return f"⌨️  Hold Key Down: '{aval}'"
         elif atype == "Key Up (Release)":
-            return f"🖮  Release Key [{aval}]"
+            return f"⌨️  Release Key: '{aval}'"
         elif atype == "Type Text":
-            return f"✍  Type Text: \"{aval}\""
+            return f"✍️  Type Text: \"{aval}\""
         elif atype == "Wait (ms)":
-            return f"⏳  Wait {aval} ms"
+            return f"⏳  Delay Wait: {aval} ms"
         elif atype == "Click Found Spot":
             return f"🖱️  {aval} at Found Spot"
         elif atype == "Click Custom (X,Y)":
@@ -1659,7 +2198,7 @@ class PixelAutomationApp(ctk.CTk):
         elif atype == "Drag and Drop":
             try:
                 parts = aval.split(",")
-                return f"🖱️  Drag ({parts[0]},{parts[1]}) -> ({parts[2]},{parts[3]})"
+                return f"🖱️  Drag ({parts[0]},{parts[1]}) ➔ ({parts[2]},{parts[3]})"
             except:
                 return f"🖱️  Drag and Drop: {aval}"
         elif atype == "Set State Variable":
@@ -1668,6 +2207,20 @@ class PixelAutomationApp(ctk.CTk):
                 return f"⚙️  Set State Var: {parts[0]} = {parts[1]}"
             except:
                 return f"⚙️  Set State Var: {aval}"
+        elif atype == "Sound Alert":
+            return f"🔊  Sound Alert: {aval}"
+        elif atype == "Run Command":
+            return f"💻  Run Command: {aval}"
+        elif atype == "Stop Engine":
+            return "🛑  Stop Automation Engine"
+        elif atype == "Conditional Jump":
+            try:
+                parts = aval.split(";")
+                return f"⌥  If {parts[0]} {parts[1]} {parts[2]} ➜ Jump Step #{parts[3]}"
+            except:
+                return f"⌥  Cond Jump: {aval}"
+        elif atype == "GoTo Step":
+            return f"➔  Always Jump to Step #{aval}"
         return f"{atype} [{aval}]"
 
     def render_action_list(self):
@@ -1679,149 +2232,362 @@ class PixelAutomationApp(ctk.CTk):
         actions = self.active_rules[self.selected_rule_index]["actions"]
         
         if not actions:
-            ctk.CTkLabel(
-                self.action_scroll, text="No actions configured for this rule yet.", 
-                font=("Arial", 11, "italic"), text_color=self.color_text_muted
-            ).pack(pady=20)
-            return
+            empty_frame = ctk.CTkFrame(self.action_scroll, fg_color="#101018", border_width=1, border_color="#2b2b3d", corner_radius=8)
+            empty_frame.pack(fill="both", expand=True, padx=20, pady=25)
             
+            # Flowchart node graphic symbol
+            graphic_lbl = ctk.CTkLabel(
+                empty_frame, text="⎔ ━━━━ ⬦ ━━━━ ⎔", 
+                font=("Arial", 16, "bold"), text_color="#3a3a52"
+            )
+            graphic_lbl.pack(pady=(30, 5))
+            
+            # Title
+            title_lbl = ctk.CTkLabel(
+                empty_frame, text="Timeline Sequence is Empty", 
+                font=("Arial", 13, "bold"), text_color=self.color_accent
+            )
+            title_lbl.pack(pady=5)
+            
+            # Subtitle
+            help_text = (
+                "Select an action type on the right and click '+ Add Action'\n"
+                "or click '🎙️ Record Live Sequence' to capture live keys & clicks (F10)"
+            )
+            help_lbl = ctk.CTkLabel(
+                empty_frame, text=help_text, 
+                font=("Arial", 11), text_color=self.color_text_muted, justify="center"
+            )
+            help_lbl.pack(pady=(5, 30))
+            return
+
+        # Flow View (Zapier-style centered workflow flowchart - highly compact!)
         for idx, act in enumerate(actions):
             atype = act["type"]
             aval = act["value"]
             
-            # Determine color theme based on action category
+            # Determine colors and badges based on action category
             if atype == "Wait (ms)":
-                accent_color = "#8a8a9e"
+                accent_color = "#FBBF24"      # Soft amber
+                circle_bg = "#382A0F"
+                emoji = "⏳"
+                display_name = "Delay Wait"
             elif atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text"]:
-                accent_color = self.color_accent # Cyan
+                accent_color = "#A78BFA"      # Soft purple
+                circle_bg = "#2E224D"
+                emoji = "⌨️" if atype != "Type Text" else "✍️"
+                display_name = "Key Action" if atype != "Type Text" else "Type Text"
             elif atype in ["Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop"]:
-                accent_color = self.color_success # Neon green
+                accent_color = "#34D399"      # Soft emerald green
+                circle_bg = "#133827"
+                emoji = "🖱️"
+                display_name = "Mouse Action"
             elif atype == "Set State Variable":
-                accent_color = "#E040FB" # Purple
+                accent_color = "#F472B6"      # Soft pink
+                circle_bg = "#3A1929"
+                emoji = "⚙️"
+                display_name = "State Var"
+            elif atype in ["Conditional Jump", "GoTo Step"]:
+                accent_color = "#60A5FA"      # Soft blue
+                circle_bg = "#1E3A8A"
+                emoji = "🔀" if atype == "Conditional Jump" else "➔"
+                display_name = "Cond Jump" if atype == "Conditional Jump" else "GoTo Step"
             else:
-                accent_color = self.color_border
+                accent_color = "#9CA3AF"      # Soft gray
+                circle_bg = "#28282D"
+                emoji = "⚙️"
+                display_name = "Custom Action"
 
-            # Main row container
+            # 1. Insertion point before Step #1
+            if idx == 0:
+                is_top_insert = (getattr(self, "inserting_action_index", None) == 0)
+                top_connector = ctk.CTkFrame(self.action_scroll, fg_color="transparent")
+                top_connector.pack(pady=(0, 2))
+                
+                if is_top_insert:
+                    ins_badge = ctk.CTkFrame(top_connector, fg_color=self.color_accent, corner_radius=6, height=14)
+                    ins_badge.pack()
+                    ctk.CTkLabel(ins_badge, text="INSERTING AS STEP #1", font=("Arial", 8, "bold"), text_color="#121214").pack(padx=6, pady=0)
+                    
+                    line = ctk.CTkFrame(top_connector, width=3, height=6, fg_color=self.color_accent)
+                    line.pack(pady=(2, 0))
+                else:
+                    insert_btn = ctk.CTkButton(
+                        top_connector, text="+", width=14, height=14, corner_radius=7,
+                        fg_color="#2b2b3d", hover_color=self.color_accent, text_color="#FFFFFF",
+                        font=("Arial", 8, "bold"),
+                        command=lambda: self.prepare_action_insertion(0)
+                    )
+                    insert_btn.pack()
+
+            # Create main row container
             row = ctk.CTkFrame(self.action_scroll, fg_color="transparent")
-            row.pack(fill="x", pady=2, padx=5)
+            row.pack(fill="x", pady=1, padx=10)
             
-            # Left timeline sidebar
-            sidebar = ctk.CTkFrame(row, fg_color="transparent", width=45)
-            sidebar.pack(side="left", fill="y", expand=False)
-            sidebar.pack_propagate(False)
+            is_editing = (self.editing_action_index == idx)
+            card_border_color = self.color_accent if is_editing else accent_color
+            card_fg_color = "#1d1d2b" if is_editing else "#12121c"
+            card_border_w = 2 if is_editing else 1
             
-            # Step node circle
-            node = ctk.CTkFrame(sidebar, width=22, height=22, corner_radius=11, fg_color=accent_color)
-            node.pack(pady=(5, 0))
-            node.pack_propagate(False)
+            # Height reduced to 38 for premium compactness!
+            card = ctk.CTkFrame(row, fg_color=card_fg_color, border_width=card_border_w, border_color=card_border_color, corner_radius=8, height=38)
+            card.pack(fill="x", expand=True)
+            card.pack_propagate(False)
             
-            # Label step index inside circle
-            node_text_color = "#0b0b0f" if accent_color in [self.color_accent, self.color_success] else "white"
-            index_lbl = ctk.CTkLabel(node, text=str(idx + 1), font=("Arial", 10, "bold"), text_color=node_text_color)
-            index_lbl.pack(expand=True)
-            row.index_label = index_lbl
+            # 1. Rounded Step index badge (e.g. "#1")
+            step_badge = ctk.CTkFrame(card, width=28, height=18, corner_radius=9, fg_color="#1d1d2b" if is_editing else "#222232")
+            step_badge.pack(side="left", padx=(10, 4))
+            step_badge.pack_propagate(False)
+            ctk.CTkLabel(step_badge, text=f"#{idx + 1}", font=("Arial", 9, "bold"), text_color=accent_color).pack(expand=True)
             
-            # Connector line (always create, but conditionally pack)
-            line = ctk.CTkFrame(sidebar, width=2, fg_color=self.color_border)
-            if idx < len(actions) - 1:
-                line.pack(fill="y", expand=True, pady=(2, 0))
-            row.connector_line = line
+            # 2. Compact Circle Icon Capsule
+            icon_frame = ctk.CTkFrame(card, width=22, height=22, corner_radius=11, fg_color=circle_bg, border_width=1, border_color=accent_color)
+            icon_frame.pack(side="left", padx=4)
+            icon_frame.pack_propagate(False)
+            ctk.CTkLabel(icon_frame, text=emoji, font=("Arial", 10), text_color="#FFFFFF").pack(expand=True)
+            
+            # 3. Editing Status badge inside the card
+            if is_editing:
+                edit_badge = ctk.CTkFrame(card, fg_color=self.color_accent, corner_radius=5, height=16)
+                edit_badge.pack(side="left", padx=4)
+                ctk.CTkLabel(edit_badge, text="EDITING", font=("Arial", 8, "bold"), text_color="#121214").pack(padx=5, pady=1)
 
-            # Render Wait Delay Pill-bar
-            if atype == "Wait (ms)":
-                card = ctk.CTkFrame(row, fg_color="#0b0b0f", border_width=1, border_color="#3a3a4d", height=32)
-                card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=2)
-                card.pack_propagate(False)
+            # 4. Descriptive Info Panel with clean pill badges
+            info_container = ctk.CTkFrame(card, fg_color="transparent")
+            info_container.pack(side="left", padx=6, fill="both", expand=True)
+            
+            # Friendly display name of action type
+            friendly_action_label = display_name
+            if atype == "Press Key":
+                friendly_action_label = "Press Key"
+            elif atype == "Key Down (Hold)":
+                friendly_action_label = "Hold Key"
+            elif atype == "Key Up (Release)":
+                friendly_action_label = "Release Key"
+            elif atype == "Type Text":
+                friendly_action_label = "Type Text"
+            elif atype == "Wait (ms)":
+                friendly_action_label = "Delay Wait"
+            elif atype == "Click Found Spot":
+                friendly_action_label = "Click Spot"
+            elif atype == "Click Custom (X,Y)":
+                friendly_action_label = "Click Coords"
+            elif atype == "Mouse Scroll":
+                friendly_action_label = "Scroll Mouse"
+            elif atype == "Drag and Drop":
+                friendly_action_label = "Drag & Drop"
+            elif atype == "Set State Variable":
+                friendly_action_label = "Set Variable"
+            elif atype == "Conditional Jump":
+                friendly_action_label = "Cond Jump"
+            elif atype == "GoTo Step":
+                friendly_action_label = "GoTo Step"
+            
+            ctk.CTkLabel(
+                info_container, text=friendly_action_label, font=("Segoe UI", 11, "bold"), text_color="#FFFFFF"
+            ).pack(side="left")
+            
+            # Render parameters in sleek pill badges (height=18)
+            if atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
+                pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill.pack(side="left", padx=6)
+                ctk.CTkLabel(pill, text=f"'{aval}'", font=("Courier New", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Type Text":
+                trunc_val = aval[:20] + "..." if len(aval) > 20 else aval
+                pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill.pack(side="left", padx=6)
+                ctk.CTkLabel(pill, text=f"\"{trunc_val}\"", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Wait (ms)":
+                pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill.pack(side="left", padx=6)
+                ctk.CTkLabel(pill, text=f"{aval} ms", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
                 
-                # Tactile drag handle ⠿
-                handle = ctk.CTkLabel(card, text="⠿", font=("Arial", 12, "bold"), text_color="#5a5a75", cursor="fleur")
-                handle.pack(side="left", padx=(10, 5))
-                handle.bind("<ButtonPress-1>", lambda e, r=row, c=card, i=idx: self.start_card_drag(e, r, c, i))
-                handle.bind("<B1-Motion>", self.motion_card_drag)
-                handle.bind("<ButtonRelease-1>", self.stop_card_drag)
-                
-                # Delay icon and value
-                ctk.CTkLabel(
-                    card, text=f"⏳ Delay: {aval} ms", font=("Courier New", 12, "bold"), text_color="#8a8a9e"
-                ).pack(side="left", padx=10)
-                
-                # Control Buttons on right side
-                ctrls = ctk.CTkFrame(card, fg_color="transparent")
-                ctrls.pack(side="right", padx=10)
-                
-                # -50ms adjustment
+                # Interactive fast delay adjusters next to the delay pill
+                adj_frame = ctk.CTkFrame(info_container, fg_color="transparent")
+                adj_frame.pack(side="left", padx=2)
                 ctk.CTkButton(
-                    ctrls, text="-50ms", width=42, height=20, fg_color="#22222e", hover_color="#313142",
-                    font=("Arial", 9, "bold"), text_color="#8a8a9e",
+                    adj_frame, text="-50", width=26, height=16, fg_color="#2b2b3d", hover_color="#3a3a52",
+                    font=("Arial", 8, "bold"), text_color="#8a8a9e", corner_radius=4,
                     command=lambda i=idx: self.adjust_delay(i, -50)
-                ).pack(side="left", padx=2)
-                
-                # +50ms adjustment
+                ).pack(side="left", padx=1)
                 ctk.CTkButton(
-                    ctrls, text="+50ms", width=42, height=20, fg_color="#22222e", hover_color="#313142",
-                    font=("Arial", 9, "bold"), text_color="#8a8a9e",
+                    adj_frame, text="+50", width=26, height=16, fg_color="#2b2b3d", hover_color="#3a3a52",
+                    font=("Arial", 8, "bold"), text_color="#8a8a9e", corner_radius=4,
                     command=lambda i=idx: self.adjust_delay(i, 50)
-                ).pack(side="left", padx=2)
+                ).pack(side="left", padx=1)
+            
+            elif atype == "Click Found Spot":
+                pill1 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill1.pack(side="left", padx=4)
+                ctk.CTkLabel(pill1, text="Spot Match", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
                 
-                # Spacer
-                ctk.CTkLabel(ctrls, text=" | ", text_color="#3a3a4d", font=("Arial", 11)).pack(side="left", padx=2)
-                
-                # Delete delay action
-                ctk.CTkButton(
-                    ctrls, text="✕", width=20, height=20, fg_color="transparent", hover_color=self.color_danger,
-                    text_color=self.color_danger, font=("Arial", 11, "bold"),
-                    command=lambda i=idx: self.delete_action(i)
-                ).pack(side="left")
-                
-            else:
-                # Full size action card
-                card = ctk.CTkFrame(row, fg_color="#14141d", border_width=1, border_color=accent_color)
-                card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=3)
-                
-                # Tactile drag handle ⠿
-                handle = ctk.CTkLabel(card, text="⠿", font=("Arial", 14, "bold"), text_color="#5a5a75", cursor="fleur")
-                handle.pack(side="left", padx=(10, 5))
-                handle.bind("<ButtonPress-1>", lambda e, r=row, c=card, i=idx: self.start_card_drag(e, r, c, i))
-                handle.bind("<B1-Motion>", self.motion_card_drag)
-                handle.bind("<ButtonRelease-1>", self.stop_card_drag)
-                
-                label_text = self.format_action_label(act)
-                ctk.CTkLabel(
-                    card, text=label_text, anchor="w", font=("Arial", 12), text_color="#FFFFFF"
-                ).pack(side="left", padx=10, pady=6, fill="x", expand=True)
-                
-                ctrls = ctk.CTkFrame(card, fg_color="transparent")
-                ctrls.pack(side="right", padx=5)
-                
-                # Move Up
-                if idx > 0:
-                    ctk.CTkButton(
-                        ctrls, text="▲", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
-                        command=lambda i=idx: self.move_action_up(i)
-                    ).pack(side="left", padx=2)
-                else:
-                    ctk.CTkLabel(ctrls, text=" ", width=25).pack(side="left", padx=2)
+                pill2 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill2.pack(side="left", padx=4)
+                ctk.CTkLabel(pill2, text=aval, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Click Custom (X,Y)":
+                try:
+                    parts = aval.split(",")
+                    cx, cy = parts[0], parts[1]
+                    ctype = parts[2] if len(parts) > 2 else "Left Click"
                     
-                # Move Down
-                if idx < len(actions) - 1:
-                    ctk.CTkButton(
-                        ctrls, text="▼", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
-                        command=lambda i=idx: self.move_action_down(i)
-                    ).pack(side="left", padx=2)
-                else:
-                    ctk.CTkLabel(ctrls, text=" ", width=25).pack(side="left", padx=2)
+                    pill1 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill1.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill1, text=f"({cx}, {cy})", font=("Courier New", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
                     
-                # Delete Action
+                    pill2 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill2.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill2, text=ctype, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                except:
+                    pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill.pack(side="left", padx=6)
+                    ctk.CTkLabel(pill, text=aval, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Mouse Scroll":
+                pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill.pack(side="left", padx=6)
+                ctk.CTkLabel(pill, text=f"Scroll: {aval}", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Drag and Drop":
+                try:
+                    parts = aval.split(",")
+                    pill1 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill1.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill1, text=f"From ({parts[0]},{parts[1]})", font=("Courier New", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                    
+                    pill2 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill2.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill2, text=f"To ({parts[2]},{parts[3]})", font=("Courier New", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                except:
+                    pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill.pack(side="left", padx=6)
+                    ctk.CTkLabel(pill, text=aval, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Set State Variable":
+                try:
+                    parts = aval.split("=")
+                    pill1 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill1.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill1, text=parts[0], font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                    
+                    pill2 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill2.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill2, text=f"= {parts[1]}", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                except:
+                    pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill.pack(side="left", padx=6)
+                    ctk.CTkLabel(pill, text=aval, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "Conditional Jump":
+                try:
+                    parts = aval.split(";")
+                    pill1 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill1.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill1, text=f"If {parts[0]} {parts[1]} {parts[2]}", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                    
+                    pill2 = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill2.pack(side="left", padx=4)
+                    ctk.CTkLabel(pill2, text=f"➔ Step {parts[3]}", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+                except:
+                    pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                    pill.pack(side="left", padx=6)
+                    ctk.CTkLabel(pill, text=aval, font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+            
+            elif atype == "GoTo Step":
+                pill = ctk.CTkFrame(info_container, fg_color="#181825", border_width=1, border_color="#313146", corner_radius=9, height=18)
+                pill.pack(side="left", padx=6)
+                ctk.CTkLabel(pill, text=f"➔ Step {aval}", font=("Segoe UI", 9, "bold"), text_color=accent_color).pack(padx=6, pady=0)
+
+            # Store references for reordering caching
+            row.index_label = row
+            
+            # 5. Interactive Control Buttons Row on right (Compact dimensions!)
+            ctrls = ctk.CTkFrame(card, fg_color="transparent")
+            ctrls.pack(side="right", padx=6)
+            
+            # Move Up button
+            if idx > 0:
                 ctk.CTkButton(
-                    ctrls, text="✕", width=25, height=22, fg_color="transparent", hover_color=self.color_danger,
-                    text_color=self.color_danger, font=("Arial", 12, "bold"),
-                    command=lambda i=idx: self.delete_action(i)
-                ).pack(side="right", padx=5)
+                    ctrls, text="▲", width=22, height=22, fg_color="transparent", hover_color="#2b2b3d",
+                    text_color="#8a8a9e", font=("Arial", 10, "bold"), corner_radius=5,
+                    command=lambda i=idx: self.move_action_up(i)
+                ).pack(side="left", padx=1)
+            
+            # Move Down button
+            if idx < len(actions) - 1:
+                ctk.CTkButton(
+                    ctrls, text="▼", width=22, height=22, fg_color="transparent", hover_color="#2b2b3d",
+                    text_color="#8a8a9e", font=("Arial", 10, "bold"), corner_radius=5,
+                    command=lambda i=idx: self.move_action_down(i)
+                ).pack(side="left", padx=1)
+                
+            # Edit Button ✎
+            ctk.CTkButton(
+                ctrls, text="✎", width=22, height=22, fg_color="transparent", hover_color="#2b2b3d",
+                text_color=self.color_accent, font=("Arial", 10, "bold"), corner_radius=5,
+                command=lambda i=idx: self.start_action_edit(i)
+            ).pack(side="left", padx=1)
+            
+            # Quick Move Button ⇄
+            ctk.CTkButton(
+                ctrls, text="⇄", width=22, height=22, fg_color="transparent", hover_color="#2b2b3d",
+                text_color="#8a8a9e", font=("Arial", 10, "bold"), corner_radius=5,
+                command=lambda i=idx: self.quick_move_action(i)
+            ).pack(side="left", padx=1)
+            
+            # Delete Button ✕
+            ctk.CTkButton(
+                ctrls, text="✕", width=22, height=22, fg_color="transparent", hover_color=self.color_danger,
+                text_color=self.color_danger, font=("Arial", 10, "bold"), corner_radius=5,
+                command=lambda i=idx: self.delete_action(i)
+            ).pack(side="left", padx=1)
+            
+            # 6. Pack Centered Down Arrow (▼) as an ultra-compact connecting node-pipeline
+            if idx < len(actions) - 1:
+                is_insertion_point = (getattr(self, "inserting_action_index", None) == idx + 1)
+                
+                connector = ctk.CTkFrame(self.action_scroll, fg_color="transparent")
+                connector.pack(pady=1)
+                
+                line_color = self.color_accent if is_insertion_point else "#323246"
+                line_w = 3 if is_insertion_point else 2
+                
+                line1 = ctk.CTkFrame(connector, width=line_w, height=4, fg_color=line_color)
+                line1.pack()
+                
+                if is_insertion_point:
+                    ins_badge = ctk.CTkFrame(connector, fg_color=self.color_accent, corner_radius=6, height=14)
+                    ins_badge.pack(pady=1)
+                    ctk.CTkLabel(ins_badge, text="INSERTING NEW STEP HERE", font=("Arial", 7, "bold"), text_color="#121214").pack(padx=6, pady=0)
+                else:
+                    insert_btn = ctk.CTkButton(
+                        connector, text="+", width=14, height=14, corner_radius=7,
+                        fg_color="#2b2b3d", hover_color=self.color_accent, text_color="#FFFFFF",
+                        font=("Arial", 8, "bold"),
+                        command=lambda i=idx+1: self.prepare_action_insertion(i)
+                    )
+                    insert_btn.pack(pady=1)
+                    
+                line2 = ctk.CTkFrame(connector, width=line_w, height=4, fg_color=line_color)
+                line2.pack()
+
 
     def delete_action(self, action_index):
         if self.selected_rule_index is not None:
             removed = self.active_rules[self.selected_rule_index]["actions"].pop(action_index)
             self.log_message(f"Deleted Action: {removed['type']}")
+            
+            # Reset edit mode if we deleted the card we were editing
+            if self.editing_action_index == action_index:
+                self.editing_action_index = None
+                self.clear_action_builder_entries()
+                self.update_action_builder_edit_mode_ui()
+            elif self.editing_action_index is not None and self.editing_action_index > action_index:
+                self.editing_action_index -= 1 # Shift index to keep sync!
+                self.update_action_builder_edit_mode_ui()
+                
             self.render_action_list()
 
     # =======================================================
@@ -1852,7 +2618,8 @@ class PixelAutomationApp(ctk.CTk):
                 "invert_match": rule.get("invert_match", rule["data"].get("invert_match", False)),
                 "precondition_var": rule.get("precondition_var", ""),
                 "precondition_op": rule.get("precondition_op", "=="),
-                "precondition_val": rule.get("precondition_val", "")
+                "precondition_val": rule.get("precondition_val", ""),
+                "cooldown_ms": rule.get("cooldown_ms", 0)
             })
             
         try:
@@ -1894,7 +2661,8 @@ class PixelAutomationApp(ctk.CTk):
                     "invert_match": item.get("invert_match", item["data"].get("invert_match", False)),
                     "precondition_var": item.get("precondition_var", ""),
                     "precondition_op": item.get("precondition_op", "=="),
-                    "precondition_val": item.get("precondition_val", "")
+                    "precondition_val": item.get("precondition_val", ""),
+                    "cooldown_ms": item.get("cooldown_ms", 0)
                 })
                 
             self.selected_rule_index = None
@@ -1919,6 +2687,8 @@ class PixelAutomationApp(ctk.CTk):
             
         self.running = True
         self.state_vars = {} # Reset FSM variables when starting automation
+        self.after(0, self.render_fsm_dashboard)
+        self.last_trigger_times = {} # Track trigger times for custom cooldowns
         self.start_btn.configure(state="disabled", fg_color="#182d1f")
         self.stop_btn.configure(state="normal", fg_color=self.color_danger)
         
@@ -1938,6 +2708,19 @@ class PixelAutomationApp(ctk.CTk):
         # Visual engine status indicators
         self.led_indicator.configure(fg_color=self.color_danger)
         self.status_label.configure(text="ENGINE STOPPED", text_color=self.color_danger)
+
+    def emergency_stop_from_hotkey(self):
+        if self.running:
+            self.log_message("⚠️ GLOBAL HOTKEY: Emergency Halt Triggered (F12)!", "WARNING")
+            self.after(0, self.stop_automation)
+
+    def toggle_automation_from_hotkey(self):
+        if self.running:
+            self.log_message("⚠️ GLOBAL HOTKEY: Stop Engine Triggered (F9)!", "WARNING")
+            self.after(0, self.stop_automation)
+        else:
+            self.log_message("⚠️ GLOBAL HOTKEY: Start Engine Triggered (F9)!", "SUCCESS")
+            self.after(0, self.start_automation)
 
     def execute_click(self, button_type, x, y):
         if not pydirectinput: return
@@ -1992,6 +2775,9 @@ class PixelAutomationApp(ctk.CTk):
         for rule in self.active_rules:
             if rule['data'].get('type') == 'image':
                 path = rule['data']['image_path']
+                if not path:
+                    self.log_message(f"Image search template error: Image path is missing for rule '{rule.get('name')}'", "ERROR")
+                    continue
                 try:
                     img = cv2.imread(path, 0)
                     if img is not None:
@@ -2014,6 +2800,14 @@ class PixelAutomationApp(ctk.CTk):
                 for rule in self.active_rules:
                     if not self.running: break
                     
+                    # Custom Cooldown Check
+                    cooldown = rule.get("cooldown_ms", 0)
+                    if cooldown > 0:
+                        last_time = self.last_trigger_times.get(rule['name'], 0)
+                        curr_time = time.time() * 1000.0
+                        if curr_time - last_time < cooldown:
+                            continue # Skip evaluation: rule is in cooldown
+
                     # Finite State Machine Precondition Evaluation
                     pre_var = rule.get("precondition_var", "")
                     if pre_var:
@@ -2212,13 +3006,26 @@ class PixelAutomationApp(ctk.CTk):
 
                     # --- EXECUTE SEQUENCED ACTIONS ---
                     if found and self.running:
+                        self.last_trigger_times[rule['name']] = time.time() * 1000.0
                         rule_name = os.path.basename(rule['name'])
                         self.log_message(f"Rule MATCHED: '{rule_name}' at coordinates ({found_x}, {found_y})", "ENGINE")
                         
-                        for action in rule['actions']:
-                            if not self.running: break
+                        actions = rule['actions']
+                        pc = 0
+                        loop_count = 0
+                        max_loops = 500
+                        
+                        while pc < len(actions) and self.running:
+                            if loop_count > max_loops:
+                                self.log_message(f"Execution Error: Infinite sequence loop detected (> {max_loops} steps)!", "ERROR")
+                                break
+                            
+                            action = actions[pc]
                             atype = action['type']
                             aval = action['value']
+                            
+                            next_pc = pc + 1
+                            loop_count += 1
 
                             try:
                                 if atype == "Press Key":
@@ -2349,9 +3156,88 @@ class PixelAutomationApp(ctk.CTk):
                                          self.state_vars[var_name] = var_val
                                          
                                      self.log_message(f"Executed: Set State Variable [{var_name} = {self.state_vars[var_name]}]", "INFO")
+                                     self.after(0, self.render_fsm_dashboard)
+
+                                elif atype == "Sound Alert":
+                                     import winsound
+                                     if aval == "Error Alert":
+                                         winsound.MessageBeep(winsound.MB_ICONHAND)
+                                     elif aval == "Success Ding":
+                                         winsound.MessageBeep(winsound.MB_OK)
+                                     elif aval == "Beep Chime":
+                                         winsound.Beep(1000, 300)
+                                     else:
+                                         winsound.MessageBeep(-1)
+                                     self.log_message(f"Executed: Played Sound Alert [{aval}]", "INFO")
+
+                                elif atype == "Run Command":
+                                     import subprocess
+                                     subprocess.Popen(str(aval), shell=True)
+                                     self.log_message(f"Executed: Launched command [{aval}]", "INFO")
+
+                                elif atype == "Stop Engine":
+                                     self.running = False
+                                     self.after(0, self.stop_automation)
+                                     self.log_message("Executed: Safety stop triggered! Stopped automation loop.", "WARNING")
+                                     break
+
+                                elif atype == "Conditional Jump":
+                                     try:
+                                         parts = aval.split(";")
+                                         var_name = parts[0].strip()
+                                         op = parts[1].strip()
+                                         var_target = parts[2].strip()
+                                         target_step = int(parts[3].strip())
+                                         
+                                         curr_val = self.state_vars.get(var_name, "").strip()
+                                         cond_met = False
+                                         
+                                         try:
+                                             num_curr = float(curr_val)
+                                             num_target = float(var_target)
+                                             is_numeric = True
+                                         except ValueError:
+                                             is_numeric = False
+                                             
+                                         if is_numeric:
+                                             if op == "==": cond_met = (num_curr == num_target)
+                                             elif op == "!=": cond_met = (num_curr != num_target)
+                                             elif op == "<": cond_met = (num_curr < num_target)
+                                             elif op == ">": cond_met = (num_curr > num_target)
+                                         else:
+                                             if op == "==": cond_met = (curr_val.lower() == var_target.lower())
+                                             elif op == "!=": cond_met = (curr_val.lower() != var_target.lower())
+                                             elif op == "<": cond_met = (curr_val.lower() < var_target.lower())
+                                             elif op == ">": cond_met = (curr_val.lower() > var_target.lower())
+                                             
+                                         if cond_met:
+                                             target_idx = target_step - 1
+                                             if 0 <= target_idx < len(actions):
+                                                 next_pc = target_idx
+                                                 self.log_message(f"Executed Jump: Condition [{var_name}({curr_val}) {op} {var_target}] met. Branching to Step #{target_step}.", "INFO")
+                                             else:
+                                                 self.log_message(f"Jump Failed: Target Step #{target_step} is out of bounds (1-{len(actions)}).", "WARNING")
+                                         else:
+                                             self.log_message(f"Condition not met: [{var_name}({curr_val}) {op} {var_target}].", "INFO")
+                                     except Exception as jmp_ex:
+                                         self.log_message(f"Jump Error: {jmp_ex}", "WARNING")
+
+                                elif atype == "GoTo Step":
+                                     try:
+                                         target_step = int(aval.strip())
+                                         target_idx = target_step - 1
+                                         if 0 <= target_idx < len(actions):
+                                             next_pc = target_idx
+                                             self.log_message(f"Executed Jump: Branching unconditionally to Step #{target_step}.", "INFO")
+                                         else:
+                                             self.log_message(f"Jump Failed: Target Step #{target_step} is out of bounds (1-{len(actions)}).", "WARNING")
+                                     except Exception as goto_ex:
+                                         self.log_message(f"GoTo Error: {goto_ex}", "WARNING")
 
                             except Exception as act_ex:
                                 self.log_message(f"Action Execution Error ({atype}): {act_ex}", "ERROR")
+
+                            pc = next_pc
                         
                         # Prevent immediate rule multi-trigger overlap
                         if self.switch_humanize.get() == 1:
@@ -2804,11 +3690,42 @@ class PixelAutomationApp(ctk.CTk):
         self.dragged_row = row
         self.dragged_card = card
         self.dragged_index = index
+        self.target_insert_index = index
         self.last_drag_y_root = event.y_root
+        self.last_drag_x_root = event.x_root
         
-        # Glow active card styling
-        card.configure(fg_color="#1d1d2b", border_color=self.color_accent)
+        # Style the original card as a "ghost slot" (translucent slot)
+        card.configure(fg_color="#101018", border_color="#2b2b3d")
         
+        # Create visual indicator line
+        self.drag_indicator = ctk.CTkFrame(self.action_scroll._inner_frame, height=4, fg_color=self.color_accent, corner_radius=2)
+        
+        # Create borderless floating Toplevel window (ghost copy of the card)
+        try:
+            w = card.winfo_width()
+            h = card.winfo_height()
+            
+            self.drag_ghost = tk.Toplevel(self)
+            self.drag_ghost.overrideredirect(True)
+            self.drag_ghost.attributes("-alpha", 0.85)  # Gorgeous semi-transparency
+            self.drag_ghost.attributes("-topmost", True)
+            
+            # Position it initially centered on the cursor
+            self.drag_ghost.geometry(f"{w}x{h}+{event.x_root - w//2}+{event.y_root - h//2}")
+            
+            ghost_frame = ctk.CTkFrame(self.drag_ghost, fg_color="#1e1e2f", border_width=2, border_color=self.color_accent, corner_radius=6, width=w, height=h)
+            ghost_frame.pack(fill="both", expand=True)
+            
+            # Format and render the active action label text inside the ghost frame
+            act = self.active_rules[self.selected_rule_index]["actions"][index]
+            label_text = self.format_action_label(act)
+            
+            ctk.CTkLabel(
+                ghost_frame, text=label_text, font=("Arial", 11, "bold"), text_color="#FFFFFF"
+            ).pack(pady=8, padx=15, fill="both", expand=True)
+        except Exception as e:
+            self.drag_ghost = None
+            
         # Start edge auto-scroll loop
         self.check_edge_scroll()
 
@@ -2818,13 +3735,18 @@ class PixelAutomationApp(ctk.CTk):
             
         if event:
             self.last_drag_y_root = event.y_root
+            self.last_drag_x_root = event.x_root
             
-        if not hasattr(self, "last_drag_y_root") or not self.dragged_row:
+        if not hasattr(self, "last_drag_y_root"):
             return
             
+        # Update ghost window position to follow the cursor!
+        if hasattr(self, "drag_ghost") and self.drag_ghost:
+            w = self.drag_ghost.winfo_width()
+            h = self.drag_ghost.winfo_height()
+            self.drag_ghost.geometry(f"+{self.last_drag_x_root - w//2}+{self.last_drag_y_root - h//2}")
+            
         if self.selected_rule_index is None: return
-        
-        actions = self.active_rules[self.selected_rule_index]["actions"]
         
         # Calculate Y relative to the scrollable frame's inner frame
         try:
@@ -2832,61 +3754,32 @@ class PixelAutomationApp(ctk.CTk):
             y = self.last_drag_y_root - inner_frame.winfo_rooty()
             
             rows = list(inner_frame.winfo_children())
-            # Filter rows to only include the ones representing actions
-            rows = [r for r in rows if isinstance(r, ctk.CTkFrame) and hasattr(r, "index_label")]
+            # Filter rows to only include action row frames (ignore the indicator line itself!)
+            rows = [r for r in rows if isinstance(r, ctk.CTkFrame) and hasattr(r, "index_label") and r != self.drag_indicator]
             
-            if len(rows) <= 1:
+            if not rows:
                 return
                 
-            try:
-                current_idx = rows.index(self.dragged_row)
-            except ValueError:
-                return
-                
-            target_idx = current_idx
+            # Find the closest insertion index
+            target_idx = len(rows)
             for i, r in enumerate(rows):
-                if r == self.dragged_row:
-                    continue
-                
                 ry = r.winfo_y()
                 rh = r.winfo_height()
                 r_center = ry + rh / 2
                 
-                if current_idx < i and y > r_center:
+                if y < r_center:
                     target_idx = i
-                elif current_idx > i and y < r_center:
-                    target_idx = i
-                    
-            if target_idx != current_idx:
-                # Swap rows in the UI list representation
-                rows.remove(self.dragged_row)
-                rows.insert(target_idx, self.dragged_row)
-                
-                # Unpack and repack all rows in the new order
-                for r in rows:
-                    r.pack_forget()
-                for r in rows:
-                    r.pack(fill="x", pady=2, padx=5)
-                    
-                # Update the actual action index in the active rules data model
-                act = actions.pop(current_idx)
-                actions.insert(target_idx, act)
-                
-                # Dynamically update step index labels and connector lines
-                for idx, r in enumerate(rows):
-                    if hasattr(r, "index_label") and r.index_label:
-                        r.index_label.configure(text=str(idx + 1))
-                    
-                    if hasattr(r, "connector_line") and r.connector_line:
-                        if idx == len(rows) - 1:
-                            r.connector_line.pack_forget()
-                        else:
-                            r.connector_line.pack(fill="y", expand=True, pady=(2, 0))
-                            
-                # Keep track of the new index for logging
-                self.dragged_index = target_idx
+                    break
+            
+            self.target_insert_index = target_idx
+            
+            # Repack the indicator line at the correct position
+            self.drag_indicator.pack_forget()
+            if target_idx < len(rows):
+                self.drag_indicator.pack(fill="x", pady=4, before=rows[target_idx])
+            else:
+                self.drag_indicator.pack(fill="x", pady=4)
         except Exception as e:
-            # Silently catch any tk measurement glitches during rapid dragging
             pass
 
     def motion_card_drag_from_scroll(self):
@@ -2896,12 +3789,41 @@ class PixelAutomationApp(ctk.CTk):
     def stop_card_drag(self, event):
         self.drag_active = False
         
-        # Log successful reordering
-        self.log_message("Timeline reordered successfully.", "SUCCESS")
+        # Destroy ghost window
+        if hasattr(self, "drag_ghost") and self.drag_ghost:
+            try:
+                self.drag_ghost.destroy()
+            except:
+                pass
+            self.drag_ghost = None
+            
+        # Unpack and destroy the indicator line
+        if hasattr(self, "drag_indicator") and self.drag_indicator:
+            try:
+                self.drag_indicator.destroy()
+            except:
+                pass
+            self.drag_indicator = None
+            
+        # Move the action in the data model
+        if self.selected_rule_index is not None and hasattr(self, "dragged_index") and hasattr(self, "target_insert_index"):
+            actions = self.active_rules[self.selected_rule_index]["actions"]
+            
+            if self.dragged_index is not None and self.target_insert_index is not None:
+                # Foolproof moving logic
+                act = actions.pop(self.dragged_index)
+                
+                new_idx = self.target_insert_index
+                if new_idx > self.dragged_index:
+                    new_idx -= 1
+                    
+                actions.insert(new_idx, act)
+                self.log_message(f"Timeline reordered successfully: step moved from {self.dragged_index + 1} to {new_idx + 1}.", "SUCCESS")
         
         self.dragged_row = None
         self.dragged_card = None
         self.dragged_index = None
+        self.target_insert_index = None
         
         # Perform a clean full re-render
         self.render_action_list()
@@ -2936,6 +3858,316 @@ class PixelAutomationApp(ctk.CTk):
             
         # Re-schedule the scroll check in 50ms
         self.after(50, self.check_edge_scroll)
+
+    def toggle_timeline_view_mode(self, val):
+        if "Compact" in val:
+            self.timeline_view_mode = "Compact"
+        else:
+            self.timeline_view_mode = "Flow"
+        self.render_action_list()
+
+    def clear_action_builder_entries(self):
+        self.entry_act_key.delete(0, "end")
+        self.entry_act_text.delete(0, "end")
+        self.entry_act_wait.delete(0, "end")
+        self.entry_act_cx.delete(0, "end")
+        self.entry_act_cy.delete(0, "end")
+        self.entry_act_scroll.delete(0, "end")
+        self.entry_act_drag_x1.delete(0, "end")
+        self.entry_act_drag_y1.delete(0, "end")
+        self.entry_act_drag_x2.delete(0, "end")
+        self.entry_act_drag_y2.delete(0, "end")
+        self.entry_act_var_name.delete(0, "end")
+        self.entry_act_var_val.delete(0, "end")
+        self.entry_act_command.delete(0, "end")
+        self.entry_act_jump_var.delete(0, "end")
+        self.entry_act_jump_val.delete(0, "end")
+        self.entry_act_jump_step.delete(0, "end")
+        self.entry_act_goto_step.delete(0, "end")
+
+    def cancel_action_edit(self):
+        self.editing_action_index = None
+        self.inserting_action_index = None
+        self.clear_action_builder_entries()
+        self.update_action_builder_edit_mode_ui()
+        self.render_action_list()
+
+    def prepare_action_insertion(self, index):
+        if self.selected_rule_index is None: return
+        self.inserting_action_index = index
+        self.editing_action_index = None # Reset edit mode
+        self.clear_action_builder_entries()
+        
+        # Show insertion visual feedback in builder card
+        self.update_action_builder_edit_mode_ui()
+        self.render_action_list()
+        self.log_message(f"Selected insertion point before Step #{index + 1}. Choose parameters and click '✓ Insert Action'.", "INFO")
+
+    def start_action_edit(self, index):
+        if self.selected_rule_index is None: return
+        self.editing_action_index = index
+        
+        # Highlight card
+        self.render_action_list()
+        
+        # Load the action data into the Action Builder card!
+        rule = self.active_rules[self.selected_rule_index]
+        act = rule["actions"][index]
+        atype = act["type"]
+        aval = act["value"]
+        
+        # Set Action Type
+        self.action_type.set(atype)
+        self.on_action_type_change(atype)
+        
+        # Populate inputs based on type
+        self.clear_action_builder_entries()
+        
+        if atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
+            self.entry_act_key.insert(0, aval)
+        elif atype == "Type Text":
+            self.entry_act_text.insert(0, aval)
+        elif atype == "Wait (ms)":
+            self.entry_act_wait.insert(0, aval)
+        elif atype == "Click Found Spot":
+            self.menu_act_click_found.set(aval)
+        elif atype == "Click Custom (X,Y)":
+            try:
+                parts = aval.split(",")
+                self.entry_act_cx.insert(0, parts[0])
+                self.entry_act_cy.insert(0, parts[1])
+                if len(parts) > 2:
+                    self.menu_act_click_custom.set(parts[2])
+            except:
+                pass
+        elif atype == "Mouse Scroll":
+            self.entry_act_scroll.insert(0, aval)
+        elif atype == "Drag and Drop":
+            try:
+                parts = aval.split(",")
+                self.entry_act_drag_x1.insert(0, parts[0])
+                self.entry_act_drag_y1.insert(0, parts[1])
+                self.entry_act_drag_x2.insert(0, parts[2])
+                self.entry_act_drag_y2.insert(0, parts[3])
+            except:
+                pass
+        elif atype == "Set State Variable":
+            try:
+                parts = aval.split("=")
+                self.entry_act_var_name.insert(0, parts[0])
+                self.entry_act_var_val.insert(0, parts[1])
+            except:
+                pass
+        elif atype == "Sound Alert":
+            self.menu_act_sound.set(aval)
+        elif atype == "Run Command":
+            self.entry_act_command.insert(0, aval)
+        elif atype == "Stop Engine":
+            pass
+        elif atype == "Conditional Jump":
+            try:
+                parts = aval.split(";")
+                self.entry_act_jump_var.insert(0, parts[0])
+                self.menu_act_jump_op.set(parts[1])
+                self.entry_act_jump_val.insert(0, parts[2])
+                self.entry_act_jump_step.insert(0, parts[3])
+            except:
+                pass
+        elif atype == "GoTo Step":
+            self.entry_act_goto_step.insert(0, aval)
+                
+        # Change the text of the main Add button to "Save Changes" and add a Cancel button!
+        self.update_action_builder_edit_mode_ui()
+
+    def update_action_builder_edit_mode_ui(self):
+        # Clear action button row children
+        for widget in self.action_btn_row.winfo_children():
+            widget.destroy()
+            
+        # Apply theme styling matching the active selection
+        atype = self.action_type.get()
+        self.apply_action_builder_theme(atype)
+        
+        if self.editing_action_index is None:
+            # Add Mode UI
+            self.action_builder_card_title.configure(text="ADD TRIGGERED ACTION")
+            ctk.CTkButton(
+                self.action_btn_row, text="+ Add Action to Sequence", width=180, height=32, 
+                fg_color=self.color_success, hover_color="#00C853", text_color="#121214",
+                font=("Arial", 12, "bold"), command=self.add_action_to_rule
+            ).pack(side="right")
+        else:
+            # Edit Mode UI
+            step_num = self.editing_action_index + 1
+            self.action_builder_card_title.configure(text=f"EDIT TIMELINE ACTION (STEP #{step_num})")
+            
+            # Save Changes Button
+            ctk.CTkButton(
+                self.action_btn_row, text="✓ Save Changes", width=120, height=32, 
+                fg_color=self.color_success, hover_color="#00C853", text_color="#121214",
+                font=("Arial", 12, "bold"), command=self.save_edited_action
+            ).pack(side="right", padx=5)
+            
+            # Cancel Button
+            ctk.CTkButton(
+                self.action_btn_row, text="Cancel", width=80, height=32, 
+                fg_color="#2b2b3d", hover_color="#3a3a52", text_color="#FFFFFF",
+                font=("Arial", 12, "bold"), command=self.cancel_action_edit
+            ).pack(side="right", padx=5)
+
+    def save_edited_action(self):
+        if self.selected_rule_index is None or self.editing_action_index is None: return
+
+        atype = self.action_type.get()
+        aval = ""
+        
+        if atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
+            aval = self.entry_act_key.get().strip()
+            if not aval:
+                self.log_message("Please specify a keyboard key!", "WARNING")
+                return
+        elif atype == "Type Text":
+            aval = self.entry_act_text.get().strip()
+            if not aval:
+                self.log_message("Please fill out the text to type!", "WARNING")
+                return
+        elif atype == "Wait (ms)":
+            aval = self.entry_act_wait.get().strip()
+            if not aval:
+                self.log_message("Please fill out wait duration in ms!", "WARNING")
+                return
+            try:
+                int(aval)
+            except ValueError:
+                self.log_message("Wait duration must be a valid integer!", "WARNING")
+                return
+        elif atype == "Click Found Spot":
+            aval = self.menu_act_click_found.get()
+        elif atype == "Click Custom (X,Y)":
+            cx = self.entry_act_cx.get().strip()
+            cy = self.entry_act_cy.get().strip()
+            ctype = self.menu_act_click_custom.get()
+            if not cx or not cy:
+                self.log_message("Coordinates X and Y must be filled!", "WARNING")
+                return
+            try:
+                int(cx)
+                int(cy)
+            except ValueError:
+                self.log_message("Coordinates must be valid integers!", "WARNING")
+                return
+            aval = f"{cx},{cy},{ctype}"
+        elif atype == "Mouse Scroll":
+            aval = self.entry_act_scroll.get().strip()
+            if not aval:
+                self.log_message("Please specify scroll amount!", "WARNING")
+                return
+            try:
+                int(aval)
+            except ValueError:
+                self.log_message("Scroll amount must be a valid integer!", "WARNING")
+                return
+        elif atype == "Drag and Drop":
+            x1 = self.entry_act_drag_x1.get().strip()
+            y1 = self.entry_act_drag_y1.get().strip()
+            x2 = self.entry_act_drag_x2.get().strip()
+            y2 = self.entry_act_drag_y2.get().strip()
+            if not x1 or not y1 or not x2 or not y2:
+                self.log_message("All drag-and-drop coordinates (X1, Y1, X2, Y2) must be filled!", "WARNING")
+                return
+            try:
+                int(x1); int(y1); int(x2); int(y2)
+            except ValueError:
+                self.log_message("Coordinates must be valid integers!", "WARNING")
+                return
+            aval = f"{x1},{y1},{x2},{y2}"
+        elif atype == "Set State Variable":
+            var_name = self.entry_act_var_name.get().strip()
+            var_val = self.entry_act_var_val.get().strip()
+            if not var_name or not var_val:
+                self.log_message("Please fill out both Variable Name and Value fields!", "WARNING")
+                return
+            if "=" in var_name or "=" in var_val:
+                self.log_message("Variable name and value cannot contain '='!", "WARNING")
+                return
+            aval = f"{var_name}={var_val}"
+        elif atype == "Sound Alert":
+            aval = self.menu_act_sound.get()
+        elif atype == "Run Command":
+            aval = self.entry_act_command.get().strip()
+            if not aval:
+                self.log_message("Please specify a command to run!", "WARNING")
+                return
+        elif atype == "Stop Engine":
+            aval = "Stop"
+        elif atype == "Conditional Jump":
+            var_name = self.entry_act_jump_var.get().strip()
+            op = self.menu_act_jump_op.get()
+            val = self.entry_act_jump_val.get().strip()
+            target_step = self.entry_act_jump_step.get().strip()
+            if not var_name or not val or not target_step:
+                self.log_message("Please fill out all Conditional Jump fields!", "WARNING")
+                return
+            if ";" in var_name or ";" in val or ";" in target_step:
+                self.log_message("Inputs cannot contain ';' separator!", "WARNING")
+                return
+            try:
+                int(target_step)
+            except ValueError:
+                self.log_message("Target step must be a valid integer!", "WARNING")
+                return
+            aval = f"{var_name};{op};{val};{target_step}"
+        elif atype == "GoTo Step":
+            target_step = self.entry_act_goto_step.get().strip()
+            if not target_step:
+                self.log_message("Please specify the target step to jump to!", "WARNING")
+                return
+            try:
+                int(target_step)
+            except ValueError:
+                self.log_message("Target step must be a valid integer!", "WARNING")
+                return
+            aval = target_step
+
+        # Update in-place
+        self.active_rules[self.selected_rule_index]["actions"][self.editing_action_index] = {
+            "type": atype, "value": aval
+        }
+        
+        self.log_message(f"Saved changes to Step #{self.editing_action_index + 1}: '{atype} [{aval}]'.", "SUCCESS")
+        
+        # Reset state
+        self.editing_action_index = None
+        self.clear_action_builder_entries()
+        self.update_action_builder_edit_mode_ui()
+        self.render_action_list()
+
+    def quick_move_action(self, index):
+        if self.selected_rule_index is None: return
+        actions = self.active_rules[self.selected_rule_index]["actions"]
+        total_steps = len(actions)
+        
+        if total_steps <= 1:
+            self.log_message("Not enough steps to reorder!", "WARNING")
+            return
+            
+        new_step_num = simpledialog.askinteger(
+            "Quick Move Step", 
+            f"Enter new step number for Step #{index + 1} (1 to {total_steps}):",
+            initialvalue=index + 1, minvalue=1, maxvalue=total_steps
+        )
+        
+        if new_step_num is None: return
+        
+        target_idx = new_step_num - 1
+        if target_idx == index: return
+        
+        # Move action
+        act = actions.pop(index)
+        actions.insert(target_idx, act)
+        
+        self.log_message(f"Moved Step #{index + 1} to Step #{new_step_num} successfully.", "SUCCESS")
+        self.render_action_list()
 
 if __name__ == "__main__":
     app = PixelAutomationApp()
