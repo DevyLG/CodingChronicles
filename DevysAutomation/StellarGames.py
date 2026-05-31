@@ -18,12 +18,26 @@ try:
 except ImportError:
     pydirectinput = None
 
+try:
+    import pytesseract
+except ImportError:
+    pytesseract = None
+
+try:
+    import mouse
+except ImportError:
+    mouse = None
+
 class PixelAutomationApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.running = False
         self.bot_thread = None
+        self.state_vars = {} # Global state variables for FSM
+        self.recording = False # Macro recording state
+        self.recorded_actions = []
+        self.last_record_time = 0
         
         self.active_rules = [] 
         self.selected_rule_index = None 
@@ -228,7 +242,7 @@ class PixelAutomationApp(ctk.CTk):
         
         self.action_type = ctk.CTkOptionMenu(
             action_selector_row, 
-            values=["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop"],
+            values=["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text", "Wait (ms)", "Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop", "Set State Variable"],
             width=180, fg_color="#2b2b3d", button_color="#3a3a52", button_hover_color="#4d4d6a",
             command=self.on_action_type_change
         )
@@ -312,6 +326,15 @@ class PixelAutomationApp(ctk.CTk):
             command=lambda: self.start_overlay("drag_end")
         ).pack(side="left", padx=3)
 
+        # Frame H: Set State Variable Input
+        self.frame_action_set_var = ctk.CTkFrame(self.action_input_frame, fg_color="transparent")
+        ctk.CTkLabel(self.frame_action_set_var, text="Variable:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.entry_act_var_name = ctk.CTkEntry(self.frame_action_set_var, placeholder_text="e.g. status", width=120, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_var_name.pack(side="left", padx=2)
+        ctk.CTkLabel(self.frame_action_set_var, text="Value:", font=("Arial", 12), text_color="#FFFFFF").pack(side="left", padx=(5, 5))
+        self.entry_act_var_val = ctk.CTkEntry(self.frame_action_set_var, placeholder_text="e.g. boss_fight or +1", width=150, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_act_var_val.pack(side="left", padx=2)
+
         # Bottom Button for Action Builder
         action_btn_row = ctk.CTkFrame(self.action_builder_card, fg_color="transparent")
         action_btn_row.pack(fill="x", padx=15, pady=(5, 10))
@@ -329,7 +352,17 @@ class PixelAutomationApp(ctk.CTk):
         self.action_sequence_card = ctk.CTkFrame(self.editor_container, fg_color="#181822", border_color=self.color_border, border_width=1)
         self.action_sequence_card.pack(fill="both", expand=True, padx=15, pady=10)
         
-        ctk.CTkLabel(self.action_sequence_card, text="EXECUTED ACTION SEQUENCE", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        seq_header = ctk.CTkFrame(self.action_sequence_card, fg_color="transparent")
+        seq_header.pack(fill="x", padx=15, pady=(10, 5))
+        
+        ctk.CTkLabel(seq_header, text="EXECUTED ACTION SEQUENCE TIMELINE", font=("Arial", 12, "bold"), text_color=self.color_accent).pack(side="left")
+        
+        self.btn_record = ctk.CTkButton(
+            seq_header, text="🎙️ Record Live Sequence (F10)", width=190, height=26,
+            fg_color="#2b2b3d", hover_color="#3a3a52", border_color=self.color_accent, border_width=1,
+            font=("Arial", 11, "bold"), command=self.toggle_recording
+        )
+        self.btn_record.pack(side="right")
 
         self.action_scroll = ctk.CTkScrollableFrame(self.action_sequence_card, fg_color="#0b0b0f")
         self.action_scroll.pack(fill="both", expand=True, padx=15, pady=10)
@@ -359,14 +392,28 @@ class PixelAutomationApp(ctk.CTk):
         cap_scroll = ctk.CTkScrollableFrame(self.tab_capture, fg_color="transparent")
         cap_scroll.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Card A: Pixel Detector Setup
-        pixel_card = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
-        pixel_card.pack(fill="x", pady=5)
+        # Segmented Button for Detector Type Selector
+        self.detector_type_selector = ctk.CTkSegmentedButton(
+            cap_scroll, 
+            values=["Pixel Color", "Image Template", "HSV Range", "Text OCR"],
+            fg_color="#181822",
+            selected_color=self.color_accent,
+            selected_hover_color="#00D2FF",
+            text_color="white",
+            font=("Arial", 12, "bold"),
+            command=self.on_detector_type_selector_change
+        )
+        self.detector_type_selector.pack(fill="x", padx=5, pady=(5, 10))
+        self.detector_type_selector.set("Pixel Color")
+
+        # ------------------ CARD 1: PIXEL DETECTOR ------------------
+        self.card_pixel = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
+        self.card_pixel.pack(fill="x", pady=5)
         
-        ctk.CTkLabel(pixel_card, text="Option A: Pixel Color Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(self.card_pixel, text="Option A: Pixel Color Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
 
         # Fields row
-        fields_row = ctk.CTkFrame(pixel_card, fg_color="transparent")
+        fields_row = ctk.CTkFrame(self.card_pixel, fg_color="transparent")
         fields_row.pack(fill="x", padx=15, pady=5)
 
         # Coord X
@@ -392,7 +439,7 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_RGB.bind("<KeyRelease>", lambda e: self.update_pixel_preview())
 
         # Buttons/Preview row
-        btn_preview_row = ctk.CTkFrame(pixel_card, fg_color="transparent")
+        btn_preview_row = ctk.CTkFrame(self.card_pixel, fg_color="transparent")
         btn_preview_row.pack(fill="x", padx=15, pady=10)
 
         ctk.CTkButton(
@@ -407,7 +454,7 @@ class PixelAutomationApp(ctk.CTk):
         self.pixel_swatch.pack(side="left", pady=5)
 
         # Tolerance slider inside Detector Tab
-        tol_row = ctk.CTkFrame(pixel_card, fg_color="transparent")
+        tol_row = ctk.CTkFrame(self.card_pixel, fg_color="transparent")
         tol_row.pack(fill="x", padx=15, pady=(0, 10))
         
         self.lbl_tolerance_val = ctk.CTkLabel(tol_row, text="Tolerance: 20", font=("Arial", 11), text_color="#FFFFFF", width=100, anchor="w")
@@ -418,7 +465,7 @@ class PixelAutomationApp(ctk.CTk):
         self.slider_tolerance.pack(side="left", fill="x", expand=True, padx=5)
 
         # Pixel search options row / Invert Match
-        pixel_opts_row = ctk.CTkFrame(pixel_card, fg_color="transparent")
+        pixel_opts_row = ctk.CTkFrame(self.card_pixel, fg_color="transparent")
         pixel_opts_row.pack(fill="x", padx=15, pady=(0, 10))
         
         self.checkbox_pixel_invert = ctk.CTkCheckBox(
@@ -428,14 +475,13 @@ class PixelAutomationApp(ctk.CTk):
         )
         self.checkbox_pixel_invert.pack(side="left")
 
-        # Card B: Image Detector Setup
-        image_card = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
-        image_card.pack(fill="x", pady=10)
+        # ------------------ CARD 2: IMAGE TEMPLATE DETECTOR ------------------
+        self.card_image = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
         
-        ctk.CTkLabel(image_card, text="Option B: Image Template Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        ctk.CTkLabel(self.card_image, text="Option B: Image Template Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
 
         # Path row
-        path_row = ctk.CTkFrame(image_card, fg_color="transparent")
+        path_row = ctk.CTkFrame(self.card_image, fg_color="transparent")
         path_row.pack(fill="x", padx=15, pady=5)
         
         self.entry_Image = ctk.CTkEntry(path_row, placeholder_text="Path to image template...", fg_color="#0b0b0f", border_color=self.color_border)
@@ -449,7 +495,7 @@ class PixelAutomationApp(ctk.CTk):
         ).pack(side="right")
 
         # Preview and parameters row
-        img_preview_row = ctk.CTkFrame(image_card, fg_color="transparent")
+        img_preview_row = ctk.CTkFrame(self.card_image, fg_color="transparent")
         img_preview_row.pack(fill="x", padx=15, pady=(5, 10))
 
         # Thumbnail Label
@@ -469,7 +515,7 @@ class PixelAutomationApp(ctk.CTk):
         self.slider_confidence.pack(fill="x")
 
         # Image search options row
-        img_opts_row = ctk.CTkFrame(image_card, fg_color="transparent")
+        img_opts_row = ctk.CTkFrame(self.card_image, fg_color="transparent")
         img_opts_row.pack(fill="x", padx=15, pady=(0, 10))
         
         self.checkbox_full_screen = ctk.CTkCheckBox(
@@ -486,9 +532,101 @@ class PixelAutomationApp(ctk.CTk):
         )
         self.checkbox_image_invert.pack(side="left", padx=(20, 0))
 
-        # Card C: Saving Profile Registry
+        # ------------------ CARD 3: HSV RANGE DETECTOR ------------------
+        self.card_hsv = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
+        
+        ctk.CTkLabel(self.card_hsv, text="Option C: HSV Color Range Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        hsv_fields_row = ctk.CTkFrame(self.card_hsv, fg_color="transparent")
+        hsv_fields_row.pack(fill="x", padx=15, pady=5)
+        
+        lower_col = ctk.CTkFrame(hsv_fields_row, fg_color="transparent")
+        lower_col.pack(side="left", expand=True, fill="x", padx=2)
+        ctk.CTkLabel(lower_col, text="Lower HSV (H,S,V):", font=("Arial", 11), text_color=self.color_text_muted).pack(anchor="w")
+        self.entry_hsv_lower = ctk.CTkEntry(lower_col, placeholder_text="e.g. 0,70,50", fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_hsv_lower.insert(0, "0,70,50")
+        self.entry_hsv_lower.pack(fill="x")
+        
+        upper_col = ctk.CTkFrame(hsv_fields_row, fg_color="transparent")
+        upper_col.pack(side="left", expand=True, fill="x", padx=2)
+        ctk.CTkLabel(upper_col, text="Upper HSV (H,S,V):", font=("Arial", 11), text_color=self.color_text_muted).pack(anchor="w")
+        self.entry_hsv_upper = ctk.CTkEntry(upper_col, placeholder_text="e.g. 10,255,255", fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_hsv_upper.insert(0, "10,255,255")
+        self.entry_hsv_upper.pack(fill="x")
+        
+        hsv_presets_row = ctk.CTkFrame(self.card_hsv, fg_color="transparent")
+        hsv_presets_row.pack(fill="x", padx=15, pady=5)
+        ctk.CTkLabel(hsv_presets_row, text="Color Preset:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.menu_hsv_preset = ctk.CTkOptionMenu(
+            hsv_presets_row, 
+            values=["Custom Range", "Red Health", "Green Health", "Blue Mana", "Yellow Quest", "Orange Active"],
+            width=150, fg_color="#2b2b3d", button_color="#3a3a52",
+            command=self.on_hsv_preset_change
+        )
+        self.menu_hsv_preset.pack(side="left")
+        
+        hsv_thresh_row = ctk.CTkFrame(self.card_hsv, fg_color="transparent")
+        hsv_thresh_row.pack(fill="x", padx=15, pady=(5, 10))
+        self.lbl_hsv_thresh = ctk.CTkLabel(hsv_thresh_row, text="Min Match Ratio: 10%", font=("Arial", 11), text_color="#FFFFFF", width=130, anchor="w")
+        self.lbl_hsv_thresh.pack(side="left")
+        self.slider_hsv_thresh = ctk.CTkSlider(hsv_thresh_row, from_=1, to=100, number_of_steps=99, progress_color=self.color_accent, command=self.on_hsv_thresh_change)
+        self.slider_hsv_thresh.set(10)
+        self.slider_hsv_thresh.pack(side="left", fill="x", expand=True, padx=5)
+        
+        hsv_cap_row = ctk.CTkFrame(self.card_hsv, fg_color="transparent")
+        hsv_cap_row.pack(fill="x", padx=15, pady=(5, 10))
+        ctk.CTkButton(
+            hsv_cap_row, text="Capture Region", width=120, height=28,
+            fg_color="#2b2b3d", hover_color="#3a3a52", border_color=self.color_accent, border_width=1,
+            font=("Arial", 11, "bold"), command=lambda: self.start_overlay("hsv")
+        ).pack(side="left", padx=(0, 10))
+        self.lbl_hsv_region = ctk.CTkLabel(hsv_cap_row, text="Region: Not Captured", font=("Arial", 11, "italic"), text_color=self.color_text_muted)
+        self.lbl_hsv_region.pack(side="left")
+        
+        hsv_opts_row = ctk.CTkFrame(self.card_hsv, fg_color="transparent")
+        hsv_opts_row.pack(fill="x", padx=15, pady=(0, 10))
+        self.checkbox_hsv_invert = ctk.CTkCheckBox(hsv_opts_row, text="Invert Match (Trigger when ABSENT)", font=("Arial", 11), text_color="#FFFFFF", fg_color=self.color_accent, hover_color="#00D2FF")
+        self.checkbox_hsv_invert.pack(side="left")
+
+        # ------------------ CARD 4: OCR DETECTOR ------------------
+        self.card_ocr = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
+        
+        ctk.CTkLabel(self.card_ocr, text="Option D: OCR Text Recognition Detector", font=("Arial", 13, "bold"), text_color=self.color_accent).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        ocr_text_row = ctk.CTkFrame(self.card_ocr, fg_color="transparent")
+        ocr_text_row.pack(fill="x", padx=15, pady=5)
+        ctk.CTkLabel(ocr_text_row, text="Target Text:", font=("Arial", 11), text_color=self.color_text_muted).pack(anchor="w")
+        self.entry_ocr_text = ctk.CTkEntry(ocr_text_row, placeholder_text="e.g. Ready or Play", fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_ocr_text.pack(fill="x")
+        
+        ocr_mode_row = ctk.CTkFrame(self.card_ocr, fg_color="transparent")
+        ocr_mode_row.pack(fill="x", padx=15, pady=5)
+        
+        ctk.CTkLabel(ocr_mode_row, text="Match Mode:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(0, 5))
+        self.menu_ocr_mode = ctk.CTkOptionMenu(ocr_mode_row, values=["Contains", "Exact", "Regex"], width=120, fg_color="#2b2b3d", button_color="#3a3a52")
+        self.menu_ocr_mode.pack(side="left", padx=5)
+        
+        self.checkbox_ocr_case = ctk.CTkCheckBox(ocr_mode_row, text="Case Sensitive", font=("Arial", 11), text_color="#FFFFFF", fg_color=self.color_accent, hover_color="#00D2FF")
+        self.checkbox_ocr_case.pack(side="left", padx=15)
+        
+        ocr_cap_row = ctk.CTkFrame(self.card_ocr, fg_color="transparent")
+        ocr_cap_row.pack(fill="x", padx=15, pady=(5, 10))
+        ctk.CTkButton(
+            ocr_cap_row, text="Capture Region", width=120, height=28,
+            fg_color="#2b2b3d", hover_color="#3a3a52", border_color=self.color_accent, border_width=1,
+            font=("Arial", 11, "bold"), command=lambda: self.start_overlay("ocr")
+        ).pack(side="left", padx=(0, 10))
+        self.lbl_ocr_region = ctk.CTkLabel(ocr_cap_row, text="Region: Not Captured", font=("Arial", 11, "italic"), text_color=self.color_text_muted)
+        self.lbl_ocr_region.pack(side="left")
+        
+        ocr_opts_row = ctk.CTkFrame(self.card_ocr, fg_color="transparent")
+        ocr_opts_row.pack(fill="x", padx=15, pady=(0, 10))
+        self.checkbox_ocr_invert = ctk.CTkCheckBox(ocr_opts_row, text="Invert Match (Trigger when ABSENT)", font=("Arial", 11), text_color="#FFFFFF", fg_color=self.color_accent, hover_color="#00D2FF")
+        self.checkbox_ocr_invert.pack(side="left")
+
+        # ------------------ SAVE CARD ------------------
         save_card = ctk.CTkFrame(cap_scroll, fg_color="#181822", border_color=self.color_border, border_width=1)
-        save_card.pack(fill="x", pady=5)
+        save_card.pack(fill="x", pady=10)
         
         ctk.CTkLabel(save_card, text="Save Detector Profile", font=("Arial", 13, "bold"), text_color="#FFFFFF").pack(anchor="w", padx=15, pady=(10, 5))
         
@@ -507,6 +645,42 @@ class PixelAutomationApp(ctk.CTk):
         
         self.save_status = ctk.CTkLabel(save_card, text="", font=("Arial", 11), text_color=self.color_success)
         self.save_status.pack(pady=(0, 10))
+
+    def on_detector_type_selector_change(self, choice):
+        self.card_pixel.pack_forget()
+        self.card_image.pack_forget()
+        self.card_hsv.pack_forget()
+        self.card_ocr.pack_forget()
+        
+        if choice == "Pixel Color":
+            self.card_pixel.pack(fill="x", pady=5)
+        elif choice == "Image Template":
+            self.card_image.pack(fill="x", pady=5)
+        elif choice == "HSV Range":
+            self.card_hsv.pack(fill="x", pady=5)
+        elif choice == "Text OCR":
+            self.card_ocr.pack(fill="x", pady=5)
+
+    def on_hsv_preset_change(self, choice):
+        if choice == "Red Health":
+            self.entry_hsv_lower.delete(0, "end"); self.entry_hsv_lower.insert(0, "0,70,50")
+            self.entry_hsv_upper.delete(0, "end"); self.entry_hsv_upper.insert(0, "10,255,255")
+        elif choice == "Green Health":
+            self.entry_hsv_lower.delete(0, "end"); self.entry_hsv_lower.insert(0, "35,70,50")
+            self.entry_hsv_upper.delete(0, "end"); self.entry_hsv_upper.insert(0, "85,255,255")
+        elif choice == "Blue Mana":
+            self.entry_hsv_lower.delete(0, "end"); self.entry_hsv_lower.insert(0, "90,70,50")
+            self.entry_hsv_upper.delete(0, "end"); self.entry_hsv_upper.insert(0, "130,255,255")
+        elif choice == "Yellow Quest":
+            self.entry_hsv_lower.delete(0, "end"); self.entry_hsv_lower.insert(0, "20,70,50")
+            self.entry_hsv_upper.delete(0, "end"); self.entry_hsv_upper.insert(0, "35,255,255")
+        elif choice == "Orange Active":
+            self.entry_hsv_lower.delete(0, "end"); self.entry_hsv_lower.insert(0, "10,70,50")
+            self.entry_hsv_upper.delete(0, "end"); self.entry_hsv_upper.insert(0, "25,255,255")
+
+    def on_hsv_thresh_change(self, val):
+        val = int(float(val))
+        self.lbl_hsv_thresh.configure(text=f"Min Match Ratio: {val}%")
 
     # =======================================================
     # TAB 2: LOGIC RULE SEQUENCING
@@ -588,6 +762,7 @@ class PixelAutomationApp(ctk.CTk):
         self.frame_action_click_custom.pack_forget()
         self.frame_action_scroll.pack_forget()
         self.frame_action_drag.pack_forget()
+        self.frame_action_set_var.pack_forget()
 
         # Show matching input
         if selected_type in ["Press Key", "Key Down (Hold)", "Key Up (Release)"]:
@@ -604,6 +779,8 @@ class PixelAutomationApp(ctk.CTk):
             self.frame_action_scroll.pack(side="left", padx=5)
         elif selected_type == "Drag and Drop":
             self.frame_action_drag.pack(side="left", padx=5)
+        elif selected_type == "Set State Variable":
+            self.frame_action_set_var.pack(side="left", padx=5)
 
     def on_loop_speed_change(self, val):
         val = int(float(val))
@@ -636,6 +813,13 @@ class PixelAutomationApp(ctk.CTk):
     def on_editor_invert_toggle(self, is_inv):
         if self.selected_rule_index is None: return
         self.active_rules[self.selected_rule_index]["invert_match"] = is_inv
+
+    def on_precondition_change(self):
+        if self.selected_rule_index is None: return
+        rule = self.active_rules[self.selected_rule_index]
+        rule["precondition_var"] = self.entry_pre_var.get().strip()
+        rule["precondition_op"] = self.menu_pre_op.get()
+        rule["precondition_val"] = self.entry_pre_val.get().strip()
 
     def show_flash_highlight(self, x, y, width=40, height=40):
         # Create a tiny borderless green flashing square on screen
@@ -787,6 +971,124 @@ class PixelAutomationApp(ctk.CTk):
                     else:
                         log_type = "ERROR"
                         log_msg = f"Diagnostics: Could not load template file '{path}'"
+                
+                # --- HSV TYPE ---
+                elif data.get("type") == "hsv":
+                    region = data.get("region")
+                    if region:
+                        rx1, ry1, rx2, ry2 = region
+                        w, h = rx2 - rx1, ry2 - ry1
+                        monitor = {
+                            "left": int(rx1),
+                            "top": int(ry1),
+                            "width": int(w),
+                            "height": int(h)
+                        }
+                        sct_img = np.array(sct.grab(monitor))
+                        bgr = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2BGR)
+                        hsv_img = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+                        
+                        lower_parts = list(map(int, data.get("hsv_lower", "0,0,0").split(",")))
+                        upper_parts = list(map(int, data.get("hsv_upper", "180,255,255").split(",")))
+                        lower_hsv = np.array(lower_parts, dtype=np.uint8)
+                        upper_hsv = np.array(upper_parts, dtype=np.uint8)
+                        
+                        mask = cv2.inRange(hsv_img, lower_hsv, upper_hsv)
+                        matched_pixels = cv2.countNonZero(mask)
+                        total_pixels = mask.shape[0] * mask.shape[1]
+                        ratio = (matched_pixels / total_pixels) * 100.0
+                        
+                        threshold = rule.get("hsv_threshold", data.get("hsv_threshold", 10.0))
+                        
+                        is_invert = rule.get("invert_match", data.get("invert_match", False))
+                        base_found = ratio >= threshold
+                        found = not base_found if is_invert else base_found
+                        
+                        found_x = int((rx1 + rx2)/2)
+                        found_y = int((ry1 + ry2)/2)
+                        
+                        if found:
+                            log_type = "SUCCESS"
+                            if is_invert:
+                                log_msg = f"Diagnostics: SUCCESS (Inverted)! HSV match ratio {ratio:.1f}% is below target {threshold:.1f}%."
+                            else:
+                                log_msg = f"Diagnostics: SUCCESS! HSV match ratio {ratio:.1f}% met target threshold {threshold:.1f}%."
+                        else:
+                            log_type = "WARNING"
+                            if is_invert:
+                                log_msg = f"Diagnostics: FAILED (Inverted)! HSV match ratio {ratio:.1f}% is above target {threshold:.1f}%."
+                            else:
+                                log_msg = f"Diagnostics: FAILED! HSV match ratio {ratio:.1f}% fell below target threshold {threshold:.1f}%."
+                    else:
+                        log_type = "ERROR"
+                        log_msg = "Diagnostics Error: No capture region set for HSV detector."
+
+                # --- OCR TYPE ---
+                elif data.get("type") == "ocr":
+                    region = data.get("region")
+                    if region:
+                        rx1, ry1, rx2, ry2 = region
+                        w, h = rx2 - rx1, ry2 - ry1
+                        monitor = {
+                            "left": int(rx1),
+                            "top": int(ry1),
+                            "width": int(w),
+                            "height": int(h)
+                        }
+                        sct_img = np.array(sct.grab(monitor))
+                        gray = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2GRAY)
+                        
+                        if pytesseract:
+                            try:
+                                extracted_text = pytesseract.image_to_string(gray).strip()
+                                
+                                target = rule.get("ocr_text", data.get("ocr_text", "")).strip()
+                                ocr_mode = data.get("ocr_mode", "Contains")
+                                case_sensitive = data.get("ocr_case_sensitive", False)
+                                
+                                match_text = extracted_text if case_sensitive else extracted_text.lower()
+                                match_target = target if case_sensitive else target.lower()
+                                
+                                base_found = False
+                                if ocr_mode == "Exact":
+                                    base_found = (match_text.strip() == match_target)
+                                elif ocr_mode == "Regex":
+                                    import re
+                                    try:
+                                        flags = 0 if case_sensitive else re.IGNORECASE
+                                        base_found = bool(re.search(target, extracted_text, flags))
+                                    except:
+                                        base_found = match_target in match_text
+                                else: # Contains
+                                    base_found = match_target in match_text
+                                    
+                                is_invert = rule.get("invert_match", data.get("invert_match", False))
+                                found = not base_found if is_invert else base_found
+                                
+                                found_x = int((rx1 + rx2)/2)
+                                found_y = int((ry1 + ry2)/2)
+                                
+                                if found:
+                                    log_type = "SUCCESS"
+                                    if is_invert:
+                                        log_msg = f"Diagnostics: SUCCESS (Inverted)! Expected text '{target}' is ABSENT from extracted text: '{extracted_text}'."
+                                    else:
+                                        log_msg = f"Diagnostics: SUCCESS! Expected text '{target}' matches extracted text: '{extracted_text}'."
+                                else:
+                                    log_type = "WARNING"
+                                    if is_invert:
+                                        log_msg = f"Diagnostics: FAILED (Inverted)! Expected text '{target}' is PRESENT in extracted text: '{extracted_text}'."
+                                    else:
+                                        log_msg = f"Diagnostics: FAILED! Expected text '{target}' not found in extracted text: '{extracted_text}'."
+                            except Exception as ocr_err:
+                                log_type = "ERROR"
+                                log_msg = f"Diagnostics: Tesseract OCR execution failed: {ocr_err}"
+                        else:
+                            log_type = "ERROR"
+                            log_msg = "Diagnostics Error: pytesseract library is not installed. Cannot execute OCR."
+                    else:
+                        log_type = "ERROR"
+                        log_msg = "Diagnostics Error: No capture region set for OCR detector."
         except Exception as e:
             log_type = "ERROR"
             log_msg = f"Diagnostics: Error during screen check: {e}"
@@ -904,8 +1206,13 @@ class PixelAutomationApp(ctk.CTk):
                 "actions": [],
                 "tolerance": data.get("tolerance", 20),
                 "confidence": data.get("confidence", 0.8),
+                "hsv_threshold": data.get("hsv_threshold", 10.0),
+                "ocr_text": data.get("ocr_text", ""),
                 "full_screen": data.get("full_screen", False),
-                "invert_match": data.get("invert_match", False)
+                "invert_match": data.get("invert_match", False),
+                "precondition_var": "",
+                "precondition_op": "==",
+                "precondition_val": ""
             }
             self.active_rules.append(new_rule)
             self.log_message(f"Rule '{filename}' added to sequencing chain.", "SUCCESS")
@@ -1048,7 +1355,7 @@ class PixelAutomationApp(ctk.CTk):
             edit_tol_slider.set(cur_tol)
             edit_tol_slider.pack(side="left", fill="x", expand=True)
             
-        else:
+        elif rule_type == "image":
             # Image template path
             path_lbl = ctk.CTkLabel(self.frame_editor_params, text=f"Type: Image Template Search  |  Template: {os.path.basename(rule['data'].get('image_path'))}", font=("Arial", 12), text_color=self.color_text_muted)
             path_lbl.pack(anchor="w", padx=15, pady=(10, 2))
@@ -1107,6 +1414,101 @@ class PixelAutomationApp(ctk.CTk):
             edit_conf_slider = ctk.CTkSlider(slider_row, from_=0.5, to=1.0, number_of_steps=50, progress_color=self.color_accent, command=self.on_editor_confidence_slider)
             edit_conf_slider.set(cur_conf)
             edit_conf_slider.pack(side="left", fill="x", expand=True)
+
+        elif rule_type == "hsv":
+            lower = rule["data"].get("hsv_lower", "0,70,50")
+            upper = rule["data"].get("hsv_upper", "10,255,255")
+            region = rule["data"].get("region")
+            reg_text = f"({region[0]},{region[1]}) -> ({region[2]},{region[3]})" if region else "Full screen"
+            
+            lbl = ctk.CTkLabel(self.frame_editor_params, text=f"Type: HSV Color Range Search  |  Bounds: {reg_text}", font=("Arial", 12), text_color=self.color_text_muted)
+            lbl.pack(anchor="w", padx=15, pady=(10, 2))
+            
+            lbl_range = ctk.CTkLabel(self.frame_editor_params, text=f"HSV Lower: [{lower}]  |  HSV Upper: [{upper}]", font=("Arial", 11), text_color="#FFFFFF")
+            lbl_range.pack(anchor="w", padx=15, pady=2)
+            
+            inv_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            inv_row.pack(fill="x", padx=15, pady=2)
+            
+            cur_inv = rule.get("invert_match", rule["data"].get("invert_match", False))
+            edit_inv_cb = ctk.CTkCheckBox(
+                inv_row, text="Invert Match (Trigger when ABSENT)", 
+                font=("Arial", 11), text_color="#FFFFFF",
+                fg_color=self.color_accent, hover_color="#00D2FF",
+                command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
+            )
+            edit_inv_cb.set(1 if cur_inv else 0)
+            edit_inv_cb.pack(side="left")
+            
+            slider_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            slider_row.pack(fill="x", padx=15, pady=(5, 10))
+            
+            cur_thresh = rule.get("hsv_threshold", 10.0)
+            self.lbl_editor_param_val = ctk.CTkLabel(slider_row, text=f"Match Threshold: {cur_thresh:.1f}%", font=("Arial", 12, "bold"), text_color=self.color_accent, width=150, anchor="w")
+            self.lbl_editor_param_val.pack(side="left")
+            
+            edit_thresh_slider = ctk.CTkSlider(slider_row, from_=1, to=100, number_of_steps=99, progress_color=self.color_accent, command=self.on_editor_hsv_thresh_slider)
+            edit_thresh_slider.set(cur_thresh)
+            edit_thresh_slider.pack(side="left", fill="x", expand=True)
+
+        elif rule_type == "ocr":
+            region = rule["data"].get("region")
+            reg_text = f"({region[0]},{region[1]}) -> ({region[2]},{region[3]})" if region else "Full screen"
+            
+            lbl = ctk.CTkLabel(self.frame_editor_params, text=f"Type: OCR Text Search  |  Bounds: {reg_text}", font=("Arial", 12), text_color=self.color_text_muted)
+            lbl.pack(anchor="w", padx=15, pady=(10, 2))
+            
+            ocr_text_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            ocr_text_row.pack(fill="x", padx=15, pady=2)
+            ctk.CTkLabel(ocr_text_row, text="Target Search Text: ", text_color="#FFFFFF").pack(side="left")
+            
+            cur_text = rule.get("ocr_text", rule["data"].get("ocr_text", ""))
+            self.entry_editor_ocr_text = ctk.CTkEntry(ocr_text_row, width=200, fg_color="#0b0b0f", border_color=self.color_border)
+            self.entry_editor_ocr_text.insert(0, cur_text)
+            self.entry_editor_ocr_text.pack(side="left", padx=5)
+            self.entry_editor_ocr_text.bind("<KeyRelease>", lambda e: self.on_editor_ocr_text_change())
+            
+            inv_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+            inv_row.pack(fill="x", padx=15, pady=(5, 10))
+            
+            cur_inv = rule.get("invert_match", rule["data"].get("invert_match", False))
+            edit_inv_cb = ctk.CTkCheckBox(
+                inv_row, text="Invert Match (Trigger when ABSENT)", 
+                font=("Arial", 11), text_color="#FFFFFF",
+                fg_color=self.color_accent, hover_color="#00D2FF",
+                command=lambda: self.on_editor_invert_toggle(edit_inv_cb.get() == 1)
+            )
+            edit_inv_cb.set(1 if cur_inv else 0)
+            edit_inv_cb.pack(side="left")
+
+        # Preconditions Sub-Card
+        fsm_lbl_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+        fsm_lbl_row.pack(fill="x", padx=15, pady=(8, 2))
+        ctk.CTkLabel(fsm_lbl_row, text="⚙️ FSM Logic Precondition (Optional)", font=("Arial", 11, "bold"), text_color=self.color_accent).pack(side="left")
+        
+        fsm_inputs_row = ctk.CTkFrame(self.frame_editor_params, fg_color="transparent")
+        fsm_inputs_row.pack(fill="x", padx=15, pady=(2, 8))
+        
+        ctk.CTkLabel(fsm_inputs_row, text="If Var:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(0, 2))
+        
+        pre_var = rule.get("precondition_var", "")
+        self.entry_pre_var = ctk.CTkEntry(fsm_inputs_row, placeholder_text="e.g. status", width=90, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_pre_var.insert(0, pre_var)
+        self.entry_pre_var.pack(side="left", padx=2)
+        self.entry_pre_var.bind("<KeyRelease>", lambda e: self.on_precondition_change())
+        
+        pre_op = rule.get("precondition_op", "==")
+        self.menu_pre_op = ctk.CTkOptionMenu(fsm_inputs_row, values=["==", "!=", "<", ">"], width=65, fg_color="#2b2b3d", button_color="#3a3a52", command=lambda op: self.on_precondition_change())
+        self.menu_pre_op.set(pre_op)
+        self.menu_pre_op.pack(side="left", padx=2)
+        
+        ctk.CTkLabel(fsm_inputs_row, text="Val:", font=("Arial", 11), text_color="#FFFFFF").pack(side="left", padx=(2, 2))
+        
+        pre_val = rule.get("precondition_val", "")
+        self.entry_pre_val = ctk.CTkEntry(fsm_inputs_row, placeholder_text="e.g. boss_fight", width=110, fg_color="#0b0b0f", border_color=self.color_border)
+        self.entry_pre_val.insert(0, pre_val)
+        self.entry_pre_val.pack(side="left", padx=2)
+        self.entry_pre_val.bind("<KeyRelease>", lambda e: self.on_precondition_change())
 
         # Unified Diagnostics / Test Match Button at the bottom of parameters editor
         ctk.CTkButton(
@@ -1182,6 +1584,16 @@ class PixelAutomationApp(ctk.CTk):
                 self.log_message("Coordinates must be valid integers!", "WARNING")
                 return
             aval = f"{x1},{y1},{x2},{y2}"
+        elif atype == "Set State Variable":
+            var_name = self.entry_act_var_name.get().strip()
+            var_val = self.entry_act_var_val.get().strip()
+            if not var_name or not var_val:
+                self.log_message("Please fill out both Variable Name and Value fields!", "WARNING")
+                return
+            if "=" in var_name or "=" in var_val:
+                self.log_message("Variable name and value cannot contain '='!", "WARNING")
+                return
+            aval = f"{var_name}={var_val}"
 
         self.active_rules[self.selected_rule_index]["actions"].append({
             "type": atype, "value": aval
@@ -1198,6 +1610,8 @@ class PixelAutomationApp(ctk.CTk):
         self.entry_act_drag_y1.delete(0, "end")
         self.entry_act_drag_x2.delete(0, "end")
         self.entry_act_drag_y2.delete(0, "end")
+        self.entry_act_var_name.delete(0, "end")
+        self.entry_act_var_val.delete(0, "end")
         
         self.render_action_list()
         self.log_message(f"Added Action: '{atype} [{aval}]' to sequence.", "SUCCESS")
@@ -1248,6 +1662,12 @@ class PixelAutomationApp(ctk.CTk):
                 return f"🖱️  Drag ({parts[0]},{parts[1]}) -> ({parts[2]},{parts[3]})"
             except:
                 return f"🖱️  Drag and Drop: {aval}"
+        elif atype == "Set State Variable":
+            try:
+                parts = aval.split("=")
+                return f"⚙️  Set State Var: {parts[0]} = {parts[1]}"
+            except:
+                return f"⚙️  Set State Var: {aval}"
         return f"{atype} [{aval}]"
 
     def render_action_list(self):
@@ -1262,47 +1682,124 @@ class PixelAutomationApp(ctk.CTk):
             ctk.CTkLabel(
                 self.action_scroll, text="No actions configured for this rule yet.", 
                 font=("Arial", 11, "italic"), text_color=self.color_text_muted
-            ).pack(pady=10)
+            ).pack(pady=20)
             return
-        
+            
         for idx, act in enumerate(actions):
-            row = ctk.CTkFrame(self.action_scroll, fg_color="#14141d", border_width=1, border_color=self.color_border)
-            row.pack(fill="x", pady=3, padx=5)
+            atype = act["type"]
+            aval = act["value"]
             
-            label_text = self.format_action_label(act)
-            ctk.CTkLabel(
-                row, text=label_text, anchor="w", font=("Arial", 12), text_color="#FFFFFF"
-            ).pack(side="left", padx=10, fill="x", expand=True)
-            
-            ctrl_btn_frame = ctk.CTkFrame(row, fg_color="transparent")
-            ctrl_btn_frame.pack(side="right", padx=5)
-            
-            # --- MOVE UP ---
-            if idx > 0:
-                ctk.CTkButton(
-                    ctrl_btn_frame, text="▲", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
-                    command=lambda i=idx: self.move_action_up(i)
-                ).pack(side="left", padx=2)
+            # Determine color theme based on action category
+            if atype == "Wait (ms)":
+                accent_color = "#8a8a9e"
+            elif atype in ["Press Key", "Key Down (Hold)", "Key Up (Release)", "Type Text"]:
+                accent_color = self.color_accent # Cyan
+            elif atype in ["Click Found Spot", "Click Custom (X,Y)", "Mouse Scroll", "Drag and Drop"]:
+                accent_color = self.color_success # Neon green
+            elif atype == "Set State Variable":
+                accent_color = "#E040FB" # Purple
             else:
-                ctk.CTkLabel(ctrl_btn_frame, text=" ", width=25).pack(side="left", padx=2) 
+                accent_color = self.color_border
 
-            # --- MOVE DOWN ---
+            # Main row container
+            row = ctk.CTkFrame(self.action_scroll, fg_color="transparent")
+            row.pack(fill="x", pady=2, padx=5)
+            
+            # Left timeline sidebar
+            sidebar = ctk.CTkFrame(row, fg_color="transparent", width=45)
+            sidebar.pack(side="left", fill="y", expand=False)
+            sidebar.pack_propagate(False)
+            
+            # Step node circle
+            node = ctk.CTkFrame(sidebar, width=22, height=22, corner_radius=11, fg_color=accent_color)
+            node.pack(pady=(5, 0))
+            node.pack_propagate(False)
+            
+            # Label step index inside circle
+            node_text_color = "#0b0b0f" if accent_color in [self.color_accent, self.color_success] else "white"
+            ctk.CTkLabel(node, text=str(idx + 1), font=("Arial", 10, "bold"), text_color=node_text_color).pack(expand=True)
+            
+            # Connector line for non-last steps
             if idx < len(actions) - 1:
-                ctk.CTkButton(
-                    ctrl_btn_frame, text="▼", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
-                    command=lambda i=idx: self.move_action_down(i)
-                ).pack(side="left", padx=2)
-            else:
-                ctk.CTkLabel(ctrl_btn_frame, text=" ", width=25).pack(side="left", padx=2) 
+                line = ctk.CTkFrame(sidebar, width=2, fg_color=self.color_border)
+                line.pack(fill="y", expand=True, pady=(2, 0))
 
-            # --- DELETE ---
-            cmd = lambda i=idx: self.delete_action(i)
-            ctk.CTkButton(
-                ctrl_btn_frame, text="✕", width=25, height=22, 
-                fg_color="transparent", hover_color=self.color_danger, 
-                text_color=self.color_danger, font=("Arial", 12, "bold"),
-                command=cmd
-            ).pack(side="right", padx=5)
+            # Render Wait Delay Pill-bar
+            if atype == "Wait (ms)":
+                card = ctk.CTkFrame(row, fg_color="#0b0b0f", border_width=1, border_color="#3a3a4d", height=32)
+                card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=2)
+                card.pack_propagate(False)
+                
+                # Delay icon and value
+                ctk.CTkLabel(
+                    card, text=f"⏳ Delay: {aval} ms", font=("Courier New", 12, "bold"), text_color="#8a8a9e"
+                ).pack(side="left", padx=15)
+                
+                # Control Buttons on right side
+                ctrls = ctk.CTkFrame(card, fg_color="transparent")
+                ctrls.pack(side="right", padx=10)
+                
+                # -50ms adjustment
+                ctk.CTkButton(
+                    ctrls, text="-50ms", width=42, height=20, fg_color="#22222e", hover_color="#313142",
+                    font=("Arial", 9, "bold"), text_color="#8a8a9e",
+                    command=lambda i=idx: self.adjust_delay(i, -50)
+                ).pack(side="left", padx=2)
+                
+                # +50ms adjustment
+                ctk.CTkButton(
+                    ctrls, text="+50ms", width=42, height=20, fg_color="#22222e", hover_color="#313142",
+                    font=("Arial", 9, "bold"), text_color="#8a8a9e",
+                    command=lambda i=idx: self.adjust_delay(i, 50)
+                ).pack(side="left", padx=2)
+                
+                # Spacer
+                ctk.CTkLabel(ctrls, text=" | ", text_color="#3a3a4d", font=("Arial", 11)).pack(side="left", padx=2)
+                
+                # Delete delay action
+                ctk.CTkButton(
+                    ctrls, text="✕", width=20, height=20, fg_color="transparent", hover_color=self.color_danger,
+                    text_color=self.color_danger, font=("Arial", 11, "bold"),
+                    command=lambda i=idx: self.delete_action(i)
+                ).pack(side="left")
+                
+            else:
+                # Full size action card
+                card = ctk.CTkFrame(row, fg_color="#14141d", border_width=1, border_color=accent_color)
+                card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=3)
+                
+                label_text = self.format_action_label(act)
+                ctk.CTkLabel(
+                    card, text=label_text, anchor="w", font=("Arial", 12), text_color="#FFFFFF"
+                ).pack(side="left", padx=15, pady=6, fill="x", expand=True)
+                
+                ctrls = ctk.CTkFrame(card, fg_color="transparent")
+                ctrls.pack(side="right", padx=5)
+                
+                # Move Up
+                if idx > 0:
+                    ctk.CTkButton(
+                        ctrls, text="▲", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
+                        command=lambda i=idx: self.move_action_up(i)
+                    ).pack(side="left", padx=2)
+                else:
+                    ctk.CTkLabel(ctrls, text=" ", width=25).pack(side="left", padx=2)
+                    
+                # Move Down
+                if idx < len(actions) - 1:
+                    ctk.CTkButton(
+                        ctrls, text="▼", width=25, height=22, fg_color="#2b2b3d", hover_color="#3a3a52",
+                        command=lambda i=idx: self.move_action_down(i)
+                    ).pack(side="left", padx=2)
+                else:
+                    ctk.CTkLabel(ctrls, text=" ", width=25).pack(side="left", padx=2)
+                    
+                # Delete Action
+                ctk.CTkButton(
+                    ctrls, text="✕", width=25, height=22, fg_color="transparent", hover_color=self.color_danger,
+                    text_color=self.color_danger, font=("Arial", 12, "bold"),
+                    command=lambda i=idx: self.delete_action(i)
+                ).pack(side="right", padx=5)
 
     def delete_action(self, action_index):
         if self.selected_rule_index is not None:
@@ -1332,8 +1829,13 @@ class PixelAutomationApp(ctk.CTk):
                 "actions": rule["actions"],
                 "tolerance": rule.get("tolerance", 20),
                 "confidence": rule.get("confidence", 0.8),
+                "hsv_threshold": rule.get("hsv_threshold", rule["data"].get("hsv_threshold", 10.0)),
+                "ocr_text": rule.get("ocr_text", rule["data"].get("ocr_text", "")),
                 "full_screen": rule.get("full_screen", rule["data"].get("full_screen", False)),
-                "invert_match": rule.get("invert_match", rule["data"].get("invert_match", False))
+                "invert_match": rule.get("invert_match", rule["data"].get("invert_match", False)),
+                "precondition_var": rule.get("precondition_var", ""),
+                "precondition_op": rule.get("precondition_op", "=="),
+                "precondition_val": rule.get("precondition_val", "")
             })
             
         try:
@@ -1369,8 +1871,13 @@ class PixelAutomationApp(ctk.CTk):
                     "actions": item["actions"],
                     "tolerance": item.get("tolerance", 20),
                     "confidence": item.get("confidence", 0.8),
+                    "hsv_threshold": item.get("hsv_threshold", item["data"].get("hsv_threshold", 10.0)),
+                    "ocr_text": item.get("ocr_text", item["data"].get("ocr_text", "")),
                     "full_screen": item.get("full_screen", item["data"].get("full_screen", False)),
-                    "invert_match": item.get("invert_match", item["data"].get("invert_match", False))
+                    "invert_match": item.get("invert_match", item["data"].get("invert_match", False)),
+                    "precondition_var": item.get("precondition_var", ""),
+                    "precondition_op": item.get("precondition_op", "=="),
+                    "precondition_val": item.get("precondition_val", "")
                 })
                 
             self.selected_rule_index = None
@@ -1394,6 +1901,7 @@ class PixelAutomationApp(ctk.CTk):
             return
             
         self.running = True
+        self.state_vars = {} # Reset FSM variables when starting automation
         self.start_btn.configure(state="disabled", fg_color="#182d1f")
         self.stop_btn.configure(state="normal", fg_color=self.color_danger)
         
@@ -1489,6 +1997,32 @@ class PixelAutomationApp(ctk.CTk):
                 for rule in self.active_rules:
                     if not self.running: break
                     
+                    # Finite State Machine Precondition Evaluation
+                    pre_var = rule.get("precondition_var", "")
+                    if pre_var:
+                        pre_op = rule.get("precondition_op", "==")
+                        pre_val = rule.get("precondition_val", "")
+                        curr_val = str(self.state_vars.get(pre_var, ""))
+                        
+                        matched = False
+                        if pre_op == "==":
+                            matched = (curr_val == pre_val)
+                        elif pre_op == "!=":
+                            matched = (curr_val != pre_val)
+                        elif pre_op == "<":
+                            try:
+                                matched = (float(curr_val) < float(pre_val))
+                            except:
+                                matched = (curr_val < pre_val)
+                        elif pre_op == ">":
+                            try:
+                                matched = (float(curr_val) > float(pre_val))
+                            except:
+                                matched = (curr_val > pre_val)
+                                
+                        if not matched:
+                            continue # Precondition failed, bypass scanning this rule
+                    
                     found = False
                     found_x, found_y = 0, 0
                     data = rule['data']
@@ -1570,6 +2104,93 @@ class PixelAutomationApp(ctk.CTk):
                                         found_x = int(monitor["left"] + monitor["width"]/2)
                                         found_y = int(monitor["top"] + monitor["height"]/2)
                         except: 
+                            pass
+                    
+                    # --- HSV CHECK ---
+                    elif data.get('type') == 'hsv':
+                        try:
+                            region = data.get("region")
+                            if region:
+                                rx1, ry1, rx2, ry2 = region
+                                monitor = {
+                                    "left": int(rx1),
+                                    "top": int(ry1),
+                                    "width": int(rx2 - rx1),
+                                    "height": int(ry2 - ry1)
+                                }
+                                sct_img = np.array(sct.grab(monitor))
+                                bgr = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2BGR)
+                                hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+                                
+                                lower_parts = list(map(int, data.get("hsv_lower", "0,0,0").split(",")))
+                                upper_parts = list(map(int, data.get("hsv_upper", "180,255,255").split(",")))
+                                lower_hsv = np.array(lower_parts, dtype=np.uint8)
+                                upper_hsv = np.array(upper_parts, dtype=np.uint8)
+                                
+                                mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+                                matched_pixels = cv2.countNonZero(mask)
+                                total_pixels = mask.shape[0] * mask.shape[1]
+                                ratio = (matched_pixels / total_pixels) * 100.0
+                                
+                                threshold = rule.get("hsv_threshold", data.get("hsv_threshold", 10.0))
+                                
+                                is_invert = rule.get("invert_match", data.get("invert_match", False))
+                                base_found = ratio >= threshold
+                                found = not base_found if is_invert else base_found
+                                
+                                if found:
+                                    found_x = int((rx1 + rx2)/2)
+                                    found_y = int((ry1 + ry2)/2)
+                        except:
+                            pass
+
+                    # --- OCR CHECK ---
+                    elif data.get('type') == 'ocr':
+                        try:
+                            region = data.get("region")
+                            if region:
+                                rx1, ry1, rx2, ry2 = region
+                                monitor = {
+                                    "left": int(rx1),
+                                    "top": int(ry1),
+                                    "width": int(rx2 - rx1),
+                                    "height": int(ry2 - ry1)
+                                }
+                                sct_img = np.array(sct.grab(monitor))
+                                gray = cv2.cvtColor(sct_img, cv2.COLOR_BGRA2GRAY)
+                                
+                                if pytesseract:
+                                    extracted_text = pytesseract.image_to_string(gray).strip()
+                                    
+                                    target = rule.get("ocr_text", data.get("ocr_text", "")).strip()
+                                    ocr_mode = data.get("ocr_mode", "Contains")
+                                    case_sensitive = data.get("ocr_case_sensitive", False)
+                                    
+                                    match_text = extracted_text if case_sensitive else extracted_text.lower()
+                                    match_target = target if case_sensitive else target.lower()
+                                    
+                                    base_found = False
+                                    if ocr_mode == "Exact":
+                                        base_found = (match_text.strip() == match_target)
+                                    elif ocr_mode == "Regex":
+                                        import re
+                                        try:
+                                            flags = 0 if case_sensitive else re.IGNORECASE
+                                            base_found = bool(re.search(target, extracted_text, flags))
+                                        except:
+                                            base_found = match_target in match_text
+                                    else: # Contains
+                                        base_found = match_target in match_text
+                                        
+                                    is_invert = rule.get("invert_match", data.get("invert_match", False))
+                                    found = not base_found if is_invert else base_found
+                                    
+                                    if found:
+                                        found_x = int((rx1 + rx2)/2)
+                                        found_y = int((ry1 + ry2)/2)
+                                else:
+                                    self.log_message("OCR Error: pytesseract library is missing. Cannot execute text detection.", "WARNING")
+                        except:
                             pass
 
                     # --- EXECUTE SEQUENCED ACTIONS ---
@@ -1689,6 +2310,29 @@ class PixelAutomationApp(ctk.CTk):
                                         time.sleep(random.uniform(0.06, 0.12))
                                         pydirectinput.mouseUp(dx2, dy2, button="left")
                                         self.log_message(f"Executed: Dragged from ({dx1}, {dy1}) to ({dx2}, {dy2})", "INFO")
+
+                                elif atype == "Set State Variable":
+                                     parts = aval.split("=")
+                                     var_name = parts[0].strip()
+                                     var_val = parts[1].strip()
+                                     
+                                     # Check for math operations (+ or -)
+                                     if (var_val.startswith("+") or var_val.startswith("-")) and len(var_val) > 1:
+                                         try:
+                                             op = var_val[0]
+                                             delta = float(var_val[1:])
+                                             current = float(self.state_vars.get(var_name, 0))
+                                             if op == "+":
+                                                 self.state_vars[var_name] = str(current + delta)
+                                             else:
+                                                 self.state_vars[var_name] = str(current - delta)
+                                         except:
+                                             self.state_vars[var_name] = var_val
+                                     else:
+                                         self.state_vars[var_name] = var_val
+                                         
+                                     self.log_message(f"Executed: Set State Variable [{var_name} = {self.state_vars[var_name]}]", "INFO")
+
                             except Exception as act_ex:
                                 self.log_message(f"Action Execution Error ({atype}): {act_ex}", "ERROR")
                         
@@ -1745,6 +2389,10 @@ class PixelAutomationApp(ctk.CTk):
             inst = "PIXEL COLOR SELECTOR  |  Move cursor and click to capture color. Right-click to cancel."
         elif self.capture_mode == "coord":
             inst = "COORDINATES SELECTOR  |  Move cursor and click to choose custom click target. Right-click to cancel."
+        elif self.capture_mode == "hsv":
+            inst = "HSV COLOR RANGE SELECTOR  |  Drag left-click to outline target search frame. Right-click to cancel."
+        elif self.capture_mode == "ocr":
+            inst = "OCR TEXT SELECTOR  |  Drag left-click to outline target text detection region. Right-click to cancel."
         else:
             inst = "IMAGE TEMPLATE SELECTOR  |  Drag left-click to outline target search frame. Right-click to cancel."
 
@@ -1786,6 +2434,10 @@ class PixelAutomationApp(ctk.CTk):
                 text_str = f"DRAG START SELECTOR  |  Cursor: ({x}, {y})  |  Click to select Drag Start spot. Right-click to cancel."
             elif self.capture_mode == "drag_end":
                 text_str = f"DRAG END SELECTOR  |  Cursor: ({x}, {y})  |  Click to select Drag End spot. Right-click to cancel."
+            elif self.capture_mode == "hsv":
+                text_str = f"HSV COLOR RANGE SELECTOR  |  Drag Start: ({self.start_x}, {self.start_y}) -> Cursor: ({x}, {y})  |  Right-click to cancel."
+            elif self.capture_mode == "ocr":
+                text_str = f"OCR TEXT SELECTOR  |  Drag Start: ({self.start_x}, {self.start_y}) -> Cursor: ({x}, {y})  |  Right-click to cancel."
             else:
                 text_str = f"IMAGE TEMPLATE SELECTOR  |  Drag Start: ({self.start_x}, {self.start_y}) -> Cursor: ({x}, {y})  |  Right-click to cancel."
                 
@@ -1872,29 +2524,34 @@ class PixelAutomationApp(ctk.CTk):
         x1, y1 = min(self.start_x, event.x), min(self.start_y, event.y)
         x2, y2 = max(self.start_x, event.x), max(self.start_y, event.y)
         
-        # Safeguard selection sizing
         if x2 - x1 < 2 or y2 - y1 < 2:
-            self.log_message("Captured frame region too small, selection canceled.", "WARNING")
+            self.log_message("Captured region too small, selection canceled.", "WARNING")
             return
             
-        try:
-            crop = self.screenshot_img.crop((x1, y1, x2, y2))
-            if not os.path.exists("images"): 
-                os.makedirs("images")
-            filename = f"images/cap_{int(time.time())}.png"
-            crop.save(filename)
-            
-            self.entry_Image.delete(0, "end"); self.entry_Image.insert(0, filename)
-            self.entry_X.delete(0, "end"); self.entry_Y.delete(0, "end"); self.entry_RGB.delete(0, "end")
-            
-            # Save the captured region coordinates
-            self.last_capture_region = (x1, y1, x2, y2)
-            
-            self.update_pixel_preview()
-            self.update_image_preview()
-            self.log_message(f"Successfully captured image template and saved to: {filename}", "SUCCESS")
-        except Exception as e:
-            self.log_message(f"Failed saving cropped template: {e}", "ERROR")
+        self.last_capture_region = (x1, y1, x2, y2)
+        
+        if self.capture_mode == "hsv":
+            self.lbl_hsv_region.configure(text=f"Region: ({x1}, {y1}) -> ({x2}, {y2})")
+            self.log_message(f"Captured HSV color range region bounds: ({x1}, {y1}) to ({x2}, {y2})", "SUCCESS")
+        elif self.capture_mode == "ocr":
+            self.lbl_ocr_region.configure(text=f"Region: ({x1}, {y1}) -> ({x2}, {y2})")
+            self.log_message(f"Captured OCR text extraction region bounds: ({x1}, {y1}) to ({x2}, {y2})", "SUCCESS")
+        else: # image template
+            try:
+                crop = self.screenshot_img.crop((x1, y1, x2, y2))
+                if not os.path.exists("images"): 
+                    os.makedirs("images")
+                filename = f"images/cap_{int(time.time())}.png"
+                crop.save(filename)
+                
+                self.entry_Image.delete(0, "end"); self.entry_Image.insert(0, filename)
+                self.entry_X.delete(0, "end"); self.entry_Y.delete(0, "end"); self.entry_RGB.delete(0, "end")
+                
+                self.update_pixel_preview()
+                self.update_image_preview()
+                self.log_message(f"Successfully captured image template and saved to: {filename}", "SUCCESS")
+            except Exception as e:
+                self.log_message(f"Failed saving cropped template: {e}", "ERROR")
 
     # =======================================================
     # PROFILE STORAGE & REGISTRY INTERACT
@@ -1905,22 +2562,10 @@ class PixelAutomationApp(ctk.CTk):
             self.log_message("Please fill out a unique Profile Name before saving!", "WARNING")
             return
             
-        image_path = self.entry_Image.get().strip()
+        choice = self.detector_type_selector.get()
+        data = {}
         
-        if image_path:
-            conf = round(float(self.slider_confidence.get()), 2)
-            full_screen = self.checkbox_full_screen.get() == 1
-            invert_match = self.checkbox_image_invert.get() == 1
-            data = {
-                "type": "image", 
-                "image_path": image_path,
-                "confidence": conf,
-                "full_screen": full_screen,
-                "invert_match": invert_match
-            }
-            if hasattr(self, 'last_capture_region') and self.last_capture_region:
-                data["region"] = list(self.last_capture_region)
-        else:
+        if choice == "Pixel Color":
             x_coord = self.entry_X.get().strip()
             y_coord = self.entry_Y.get().strip()
             rgb_val = self.entry_RGB.get().strip()
@@ -1939,7 +2584,68 @@ class PixelAutomationApp(ctk.CTk):
                 "tolerance": tol,
                 "invert_match": invert_match
             }
+        elif choice == "Image Template":
+            image_path = self.entry_Image.get().strip()
+            if not image_path:
+                self.log_message("Create Detector error: No image path template filled!", "ERROR")
+                return
+            conf = round(float(self.slider_confidence.get()), 2)
+            full_screen = self.checkbox_full_screen.get() == 1
+            invert_match = self.checkbox_image_invert.get() == 1
+            data = {
+                "type": "image", 
+                "image_path": image_path,
+                "confidence": conf,
+                "full_screen": full_screen,
+                "invert_match": invert_match
+            }
+            if hasattr(self, 'last_capture_region') and self.last_capture_region:
+                data["region"] = list(self.last_capture_region)
+        elif choice == "HSV Range":
+            lower_hsv = self.entry_hsv_lower.get().strip()
+            upper_hsv = self.entry_hsv_upper.get().strip()
             
+            if not lower_hsv or not upper_hsv:
+                self.log_message("Create Detector error: Lower and Upper HSV values must be filled!", "ERROR")
+                return
+            
+            thresh = int(self.slider_hsv_thresh.get())
+            invert_match = self.checkbox_hsv_invert.get() == 1
+            data = {
+                "type": "hsv",
+                "hsv_lower": lower_hsv,
+                "hsv_upper": upper_hsv,
+                "hsv_threshold": thresh,
+                "invert_match": invert_match
+            }
+            if hasattr(self, 'last_capture_region') and self.last_capture_region:
+                data["region"] = list(self.last_capture_region)
+            else:
+                self.log_message("Create Detector error: HSV color range search requires a captured region!", "ERROR")
+                return
+        elif choice == "Text OCR":
+            ocr_text = self.entry_ocr_text.get().strip()
+            if not ocr_text:
+                self.log_message("Create Detector error: Target Search Text must be specified!", "ERROR")
+                return
+            
+            ocr_mode = self.menu_ocr_mode.get()
+            case_sensitive = self.checkbox_ocr_case.get() == 1
+            invert_match = self.checkbox_ocr_invert.get() == 1
+            
+            data = {
+                "type": "ocr",
+                "ocr_text": ocr_text,
+                "ocr_mode": ocr_mode,
+                "ocr_case_sensitive": case_sensitive,
+                "invert_match": invert_match
+            }
+            if hasattr(self, 'last_capture_region') and self.last_capture_region:
+                data["region"] = list(self.last_capture_region)
+            else:
+                self.log_message("Create Detector error: Text OCR search requires a captured region!", "ERROR")
+                return
+
         try:
             filename = f"{name}.json"
             with open(filename, "w") as f: 
@@ -1953,16 +2659,128 @@ class PixelAutomationApp(ctk.CTk):
             self.entry_X.delete(0, "end")
             self.entry_Y.delete(0, "end")
             self.entry_RGB.delete(0, "end")
+            self.entry_ocr_text.delete(0, "end")
             self.last_capture_region = None
+            self.lbl_hsv_region.configure(text="Region: Not Captured")
+            self.lbl_ocr_region.configure(text="Region: Not Captured")
             self.checkbox_full_screen.deselect()
             self.checkbox_image_invert.deselect()
             self.checkbox_pixel_invert.deselect()
+            self.checkbox_hsv_invert.deselect()
+            self.checkbox_ocr_invert.deselect()
+            self.checkbox_ocr_case.deselect()
             self.update_pixel_preview()
             self.update_image_preview()
             
             self.refresh_profiles()
         except Exception as e:
             self.log_message(f"Failed to register detector profile: {e}", "ERROR")
+
+    def on_editor_hsv_thresh_slider(self, val):
+        if self.selected_rule_index is None: return
+        val = int(float(val))
+        self.active_rules[self.selected_rule_index]["hsv_threshold"] = val
+        self.lbl_editor_param_val.configure(text=f"Match Threshold: {val}%")
+
+    def on_editor_ocr_text_change(self):
+        if self.selected_rule_index is None: return
+        self.active_rules[self.selected_rule_index]["ocr_text"] = self.entry_editor_ocr_text.get().strip()
+
+    def adjust_delay(self, idx, amount):
+        if self.selected_rule_index is None: return
+        actions = self.active_rules[self.selected_rule_index]["actions"]
+        try:
+            val = int(actions[idx]["value"])
+            new_val = max(10, val + amount) # Clamp to min 10ms
+            actions[idx]["value"] = str(new_val)
+            self.render_action_list()
+        except:
+            pass
+
+    def toggle_recording(self):
+        if self.selected_rule_index is None:
+            self.log_message("Please select a rule sequence first to record into!", "WARNING")
+            return
+            
+        if not self.recording:
+            # Start Recording
+            self.recording = True
+            self.recorded_actions = []
+            self.last_record_time = time.time()
+            self.btn_record.configure(text="🔴 Recording (F10 to Stop)...", fg_color=self.color_danger, hover_color="#C62828")
+            self.log_message("Macro Recording STARTED! Press F10 or click the button to STOP.", "ENGINE")
+            self.log_message("Perform mouse clicks and key strokes in your game or application now.", "INFO")
+            
+            # Setup global hooks
+            keyboard.hook(self.on_recorded_key)
+            if mouse:
+                mouse.hook(self.on_recorded_mouse)
+            else:
+                self.log_message("Mouse hook not available. Keyboard-only recording active.", "WARNING")
+        else:
+            self.stop_recording()
+
+    def stop_recording(self):
+        if not self.recording: return
+        self.recording = False
+        self.btn_record.configure(text="🎙️ Record Live Sequence (F10)", fg_color="#2b2b3d", hover_color="#3a3a52")
+        
+        # Unhook global hooks
+        try:
+            keyboard.unhook(self.on_recorded_key)
+        except:
+            pass
+            
+        if mouse:
+            try:
+                mouse.unhook(self.on_recorded_mouse)
+            except:
+                pass
+                
+        # Append all recorded actions to the selected rule
+        if self.recorded_actions:
+            self.active_rules[self.selected_rule_index]["actions"].extend(self.recorded_actions)
+            self.log_message(f"Macro Recording FINISHED. Appended {len(self.recorded_actions)} actions to the sequence.", "SUCCESS")
+            self.render_action_list()
+        else:
+            self.log_message("Macro Recording FINISHED. No inputs captured.", "WARNING")
+
+    def on_recorded_key(self, event):
+        if not self.recording: return
+        # F10 is the stop toggle hotkey!
+        if event.name == "f10":
+            if event.event_type == "down":
+                self.after(0, self.stop_recording)
+            return
+            
+        if event.event_type == "down":
+            now = time.time()
+            delay = int((now - self.last_record_time) * 1000)
+            self.last_record_time = now
+            
+            # Record wait duration if significant (e.g. > 50ms)
+            if delay > 50:
+                self.recorded_actions.append({"type": "Wait (ms)", "value": str(delay)})
+                
+            self.recorded_actions.append({"type": "Press Key", "value": event.name})
+            self.log_message(f"Recorded Key Press: '{event.name}'", "INFO")
+
+    def on_recorded_mouse(self, event):
+        if not self.recording: return
+        # Capture mouse click down events
+        if isinstance(event, mouse.ButtonEvent) and event.event_type == "down":
+            now = time.time()
+            delay = int((now - self.last_record_time) * 1000)
+            self.last_record_time = now
+            
+            if delay > 50:
+                self.recorded_actions.append({"type": "Wait (ms)", "value": str(delay)})
+                
+            # Get current position
+            mx, my = mouse.get_position()
+            click_type = "Left Click" if event.button == "left" else "Right Click"
+            self.recorded_actions.append({"type": "Click Custom (X,Y)", "value": f"{mx},{my},{click_type}"})
+            self.log_message(f"Recorded Mouse Click: {click_type} at ({mx}, {my})", "INFO")
 
 if __name__ == "__main__":
     app = PixelAutomationApp()

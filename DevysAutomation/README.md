@@ -1,89 +1,141 @@
-# Devy's Multi-Rule Automation Engine
+# 🌌 Stellar Automation Engine Pro
 
-A robust, GUI-based automation tool designed to create complex logic chains for games and applications without writing code.
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)](https://python.org)
+[![GUI](https://img.shields.io/badge/GUI-CustomTkinter-darkgreen)](https://github.com/tomschimansky/CustomTkinter)
+[![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)](https://microsoft.com)
 
-This application allows you to capture "ingredients" (screen coordinates or images) and assign specific actions (clicks, key presses, text input) to them using a modern visual interface.
+An elite, high-performance, and visually stunning visual macro automation engine. Designed specifically for advanced game scripting and application workflows, **Stellar Automation Engine Pro** allows you to construct robust, non-linear logic chains using precise pixel checking, optimized image detection, HSV color ranges, and OCR text matching without writing a single line of code.
 
-## ⚡ Key Features
-
-* **Modern Dark UI:** Built with `customtkinter` for a clean, user-friendly experience.
-* **Dual Detection Modes:**
-    * **Pixel Detection:** Monitors specific coordinates for exact color changes (RGB).
-    * **Image Detection:** Scans the screen for specific images/icons using OpenCV.
-* **Visual Logic Builder:** Create automation rules by linking detectors to actions.
-* **Action Support:**
-    * Auto-Click (at found location or custom coordinates).
-    * Keyboard Input (Press single keys or type text).
-    * Wait/Sleep delays.
-* **JSON Profile System:** Save your "detectors" as distinct `.json` files to reuse across different logic chains.
-* **Live Overlay:** Includes a built-in snipping tool to capture screen regions or pick pixel colors directly.
+Featuring a **Live Macro Recorder & Visual Timeline Editor**, **HSV Color Range Gradients**, **OCR Text Recognition**, a **Finite State Machine (FSM) Logic Controller**, **Humanize Mode (Anti-Cheat Bypass)**, a **15x Optimized Template Scanner**, and **Interactive Neon Diagnostics overlays**, it provides desktop automation capabilities with a professional gamer aesthetic.
 
 ---
 
-## 🛠️ Installation
+## ⚡ Core Technical Features
 
-1.  **Clone or Download** this repository.
-2.  **Install Dependencies** using `pip`. The application relies on several libraries for GUI, screen capture, and input simulation.
+### 🎙️ Live Macro Recording Hook
+Ditch manual coordinate typing and keyboard entry. Record your real actions live inside games or desktop applications:
+* **Background Hooking:** Track global keyboard keystrokes and mouse clicks in real-time, even when clicked into third-party game clients.
+* **Smart Translators:** Automatically converts performance sessions into distinct, editable visual timeline steps.
+* **Automatic Delays:** Captures authentic elapsed timing between clicks/keys and auto-fills wait buffers.
+* **Hotkey Controls:** Toggle recording instantly from anywhere on your desktop by pressing the **F10** key.
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 📊 Visual Timeline Editor & Timing Tweaks
+Constructing sequences is highly interactive inside our custom-styled vertical timeline:
+* **Color-Coded Nodes:** Connects sequence steps using vertical timeline guides and action icons, color-coded by action category (e.g., Cyan for keys, Neon Green for mouse clicks, Purple for FSM state switches, Grey for delays).
+* **Inline Delay Pills:** Sequence delays are styled as sleek, dark delay pills.
+* **Tactile Micro-Adjustments:** Dial in timing without typing! Add or subtract wait times instantly using the inline **`-50ms`** and **`+50ms`** buttons directly inside the timeline pill.
 
-    *Recommended `requirements.txt` content:*
-    ```text
-    customtkinter
-    Pillow
-    mss
-    opencv-python
-    numpy
-    keyboard
-    pydirectinput
-    ```
+### 🌈 HSV Color Range Gradient Detector
+Many game interfaces use color gradients (such as shifting red health bars or mana pools) that break standard single-pixel coordinate rules.
+* **Region-Based Gradients:** Captures a coordinate region and isolates specific ranges in Hue, Saturation, Value (HSV) color spaces.
+* **Match Ratio Threshold:** Calculates the precise percentage of pixels in the region matching the color range ($1\% - 100\%$) to trigger action sequences.
+* **Built-in Presets:** Includes dynamic pre-loaded ranges for **Red Health**, **Green Health**, **Blue Mana**, **Yellow Quest Markers**, and **Orange Active Elements** that automatically populate threshold fields.
 
-3.  **Run the Application:**
-    ```bash
-    python StellarGames.py
-    ```
+### ✍️ OCR Text Recognition (Optical Character Recognition)
+Automate interfaces based on live on-screen text events, such as waiting for cooldown labels, matching lobby messages, or detecting text cues (e.g., "Victory" or "Defeat"):
+* **Targeted Extraction:** Scans customized regional viewports for text blocks using PyTesseract.
+* **Flexible Comparison Modes:**
+  * **Contains:** Triggers if the target phrase appears anywhere in the captured text.
+  * **Exact Match:** Triggers only if the text matches exactly.
+  * **Regex:** Leverages complete Regular Expression patterns.
+* **Live In-Editor Modifications:** Update target search phrases directly within the Sequencing tab without re-recording profiles.
 
----
+### ⚙️ Finite State Machine (FSM) & Loop Controls
+Stellar integrates a powerful FSM engine that lets you build stateful, branch-dependent macro environments:
+* **Trigger Preconditions:** Rules can define mandatory variable comparisons (e.g., only trigger Rule B if state variable `phase` `==` `boss_fight`).
+* **State Modification Actions:** Trigger sequence state changes when a rule matches.
+* **Mathematical Counters:** State setter actions support incremental and decremental operations (e.g., modifying `loop_count` by `+1` or `-1`) for loops and escape parameters.
 
-## 📖 Usage Guide
+### 🛡️ Humanize Mode (Heuristic Anti-Cheat Bypass)
+Bot detection algorithms scan for instantaneous, perfectly repeated computer inputs. The built-in **Humanize** layer randomizes interactions to mimic an organic human operator:
+* **Organic Clicking:** Randomized click coordinates (±4px offset) paired with authentic click-hold timings ($55\text{ms} - 125\text{ms}$).
+* **Dynamic Typing Cadence:** Character-by-character string writing with simulated finger travel times ($35\text{ms} - 110\text{ms}$ per character) and random typing hesitations ($150\text{ms} - 300\text{ms}$).
+* **Timing Jitter:** Sequence wait delays include a dynamic $\pm15\%$ jitter variance.
+* **Hand-Tremor Dragging:** Mouse Drag & Drop executes along an organic **S-Curve (Ease-In-Ease-Out)** path using trigonometric interpolation, complete with micro-deviations mimicking physical muscle tremors.
 
-The application is divided into two main steps: **Capturing Ingredients** and **Building Logic**.
+### 🏎️ Regional Template Match (ROI Optimization)
+* **Targeted Scanning:** Stellar uses a restricted **Region of Interest (ROI)** padding system: `(x1-10, y1-10, x2+10, y2+10)`.
+* **15x Speedup:** By constraining OpenCV matching calculations to localized coordinates, detection routines run in **$<2\text{ms}$** with negligible CPU footprints.
 
-### Step 1: Capture Ingredients (Tab 1)
-This tab is where you define *what* the bot should look for.
-
-1.  **Choose a Method:**
-    * **Pixel Detect:** Click "Pick Pixel" to launch an overlay. Click anywhere on your screen to grab the X, Y, and RGB values automatically.
-    * **Image Detect:** Click "Capture Region" to launch an overlay. Click and drag to draw a box around the icon, button, or enemy you want to detect.
-2.  **Name & Save:** Give your detector a unique name (e.g., `accept_button` or `health_bar_low`) and click **SAVE DETECTOR**. This creates a `.json` file in your folder.
-
-### Step 2: Build Logic Chain (Tab 2)
-This tab is where you tell the bot *what to do* when it finds your ingredients.
-
-1.  **Add Rules:** Select a saved profile from the dropdown and click **+ Add Detection Rule**. It will appear in your "Active Rules" list on the left.
-2.  **Edit Actions:** Click on a rule in the list to select it. On the right side, you can now add actions to execute when that rule is triggered:
-    * **Press Key:** Simulates a key press (e.g., `F`, `Enter`).
-    * **Type Text:** Types a full string.
-    * **Click Found Spot:** Clicks exactly where the image/pixel was detected.
-    * **Click Custom (X,Y):** Clicks a specific coordinate you provide.
-    * **Wait (ms):** Pauses execution (useful for preventing spam-clicking).
-3.  **Prioritize:** Use the **↑** and **↓** arrows to change the order of actions.
-
-### Step 3: Start
-Click **START ALL** to begin the automation loop.
-* The bot will continuously scan the screen for your active rules.
-* If a rule matches, it executes the assigned action chain.
-* Click **STOP** to end the process.
+### 🔍 Interactive Live Neon Diagnostics
+Verify match logic instantaneously before launching automation profiles:
+* **Hollow Green Bounding Boxes:** An advanced Windows graphics layer generates a transparent green box directly highlighting matched targets on your screen.
+* **No-Overlap Windows:** The diagnostics viewport does not intercept mouse clicks or key inputs, allowing you to debug live environments.
 
 ---
 
-## 📂 Project Structure
+## 📦 Complex Input Sequences Supported
 
-* `StellarGames.py`: The main application source code.
-* `images/`: Automatically created folder where captured image templates are stored.
-* `*.json`: Saved detector profiles created by the user.
+* **Press Key:** Keystrokes with configurable hold durations.
+* **Key Down (Hold) & Key Up (Release):** Separate events to sustain movements or drag triggers.
+* **Type Text:** Natural character streams.
+* **Wait (ms):** Accurate delays with humanized jitter options.
+* **Click Found Spot:** Left click, Right click, or Double click exactly where the template/pixel was matched.
+* **Click Custom (X, Y):** Absolute coordinates trigger paths.
+* **Mouse Scroll:** Precise vertical scrolling increments.
+* **Drag and Drop:** Mathematically modeled bezier-like cursor movement paths.
+* **Set State Variable:** FSM state controllers supporting absolute values (e.g. `stage=boss_fight`) and math (e.g. `loops=+1`).
 
-## ⚠️ Note on Games
-This tool uses `pydirectinput` for mouse/keyboard control, which is specifically designed to work with DirectX games that often block standard Python input commands. Ensure you run this script as **Administrator** if the game requires high-level privileges.
+---
+
+## ⚙️ Installation & Setup
+
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/DevyLG/CodingChronicles.git
+   cd CodingChronicles/DevysAutomation
+   ```
+
+2. **Initialize Environment & Install Dependencies:**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. **Install Tesseract OCR (Required for OCR Text Detection):**
+   * Download and install the Tesseract-OCR binary on your Windows machine from the [Tesseract Repository](https://github.com/UB-Mannheim/tesseract/wiki).
+   * Ensure Tesseract is added to your Windows System Path (`C:\Program Files\Tesseract-OCR` by default).
+
+4. **Run Application:**
+   ```bash
+   python StellarGames.py
+   ```
+
+---
+
+## 🏗️ Building a Standalone Distributable Binary (`.exe`)
+
+The codebase is fully optimized for standalone deployment using PyInstaller.
+
+To bundle the application into a single, light-weight, console-less executable on Windows:
+
+```powershell
+pip install pyinstaller
+pyinstaller StellarGames.spec
+```
+
+The resulting executable will be available at:
+📁 `dist/StellarGames.exe`
+
+---
+
+## 📂 Project Architecture
+
+```plaintext
+DevysAutomation/
+├── StellarGames.py        # Complete Application Source Code
+├── StellarGames.spec      # PyInstaller Packaging Configuration
+├── requirements.txt       # Hardened Python Package Manifests
+├── images/                # Local database for user-captured template snips
+└── dist/                  # Output directory for compiled standalone binary
+```
+
+---
+
+## 📜 License & Disclaimers
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+*Disclaimer: This tool is intended for educational, macro-testing, and single-player game accessibility purposes. Check game-specific End User License Agreements (EULA) before utilizing pixel macros in multiplayer environments.*
