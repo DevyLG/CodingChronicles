@@ -20,8 +20,10 @@ Ditch manual coordinate typing and keyboard entry. Record your real actions live
 * **Automatic Delays:** Captures authentic elapsed timing between clicks/keys and auto-fills wait buffers.
 * **Hotkey Controls:** Toggle recording instantly from anywhere on your desktop by pressing the **F10** key.
 
-### 📊 Visual Timeline Editor & Timing Tweaks
-Constructing sequences is highly interactive inside our custom-styled vertical timeline:
+### 📊 Visual Timeline Editor & Drag-and-Drop Reordering
+Constructing and optimizing sequences is highly interactive inside our custom-styled vertical timeline:
+* **Interactive Drag-and-Drop Reordering:** Simply grab any sequence card or delay pill by its tactile handle (`⠿`) and drag it up or down to reorder steps in real-time. Cards smoothly shuffle on-screen with instant visual feedback and update the logic model dynamically.
+* **Smart Edge Auto-Scroll:** Dragging a step near the top or bottom edges of the sequence viewport automatically scrolls the list, allowing seamless reordering of large automation chains.
 * **Color-Coded Nodes:** Connects sequence steps using vertical timeline guides and action icons, color-coded by action category (e.g., Cyan for keys, Neon Green for mouse clicks, Purple for FSM state switches, Grey for delays).
 * **Inline Delay Pills:** Sequence delays are styled as sleek, dark delay pills.
 * **Tactile Micro-Adjustments:** Dial in timing without typing! Add or subtract wait times instantly using the inline **`-50ms`** and **`+50ms`** buttons directly inside the timeline pill.

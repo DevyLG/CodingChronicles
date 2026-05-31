@@ -1717,12 +1717,15 @@ class PixelAutomationApp(ctk.CTk):
             
             # Label step index inside circle
             node_text_color = "#0b0b0f" if accent_color in [self.color_accent, self.color_success] else "white"
-            ctk.CTkLabel(node, text=str(idx + 1), font=("Arial", 10, "bold"), text_color=node_text_color).pack(expand=True)
+            index_lbl = ctk.CTkLabel(node, text=str(idx + 1), font=("Arial", 10, "bold"), text_color=node_text_color)
+            index_lbl.pack(expand=True)
+            row.index_label = index_lbl
             
-            # Connector line for non-last steps
+            # Connector line (always create, but conditionally pack)
+            line = ctk.CTkFrame(sidebar, width=2, fg_color=self.color_border)
             if idx < len(actions) - 1:
-                line = ctk.CTkFrame(sidebar, width=2, fg_color=self.color_border)
                 line.pack(fill="y", expand=True, pady=(2, 0))
+            row.connector_line = line
 
             # Render Wait Delay Pill-bar
             if atype == "Wait (ms)":
@@ -1730,10 +1733,17 @@ class PixelAutomationApp(ctk.CTk):
                 card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=2)
                 card.pack_propagate(False)
                 
+                # Tactile drag handle ⠿
+                handle = ctk.CTkLabel(card, text="⠿", font=("Arial", 12, "bold"), text_color="#5a5a75", cursor="fleur")
+                handle.pack(side="left", padx=(10, 5))
+                handle.bind("<ButtonPress-1>", lambda e, r=row, c=card, i=idx: self.start_card_drag(e, r, c, i))
+                handle.bind("<B1-Motion>", self.motion_card_drag)
+                handle.bind("<ButtonRelease-1>", self.stop_card_drag)
+                
                 # Delay icon and value
                 ctk.CTkLabel(
                     card, text=f"⏳ Delay: {aval} ms", font=("Courier New", 12, "bold"), text_color="#8a8a9e"
-                ).pack(side="left", padx=15)
+                ).pack(side="left", padx=10)
                 
                 # Control Buttons on right side
                 ctrls = ctk.CTkFrame(card, fg_color="transparent")
@@ -1768,10 +1778,17 @@ class PixelAutomationApp(ctk.CTk):
                 card = ctk.CTkFrame(row, fg_color="#14141d", border_width=1, border_color=accent_color)
                 card.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=3)
                 
+                # Tactile drag handle ⠿
+                handle = ctk.CTkLabel(card, text="⠿", font=("Arial", 14, "bold"), text_color="#5a5a75", cursor="fleur")
+                handle.pack(side="left", padx=(10, 5))
+                handle.bind("<ButtonPress-1>", lambda e, r=row, c=card, i=idx: self.start_card_drag(e, r, c, i))
+                handle.bind("<B1-Motion>", self.motion_card_drag)
+                handle.bind("<ButtonRelease-1>", self.stop_card_drag)
+                
                 label_text = self.format_action_label(act)
                 ctk.CTkLabel(
                     card, text=label_text, anchor="w", font=("Arial", 12), text_color="#FFFFFF"
-                ).pack(side="left", padx=15, pady=6, fill="x", expand=True)
+                ).pack(side="left", padx=10, pady=6, fill="x", expand=True)
                 
                 ctrls = ctk.CTkFrame(card, fg_color="transparent")
                 ctrls.pack(side="right", padx=5)
@@ -2781,6 +2798,144 @@ class PixelAutomationApp(ctk.CTk):
             click_type = "Left Click" if event.button == "left" else "Right Click"
             self.recorded_actions.append({"type": "Click Custom (X,Y)", "value": f"{mx},{my},{click_type}"})
             self.log_message(f"Recorded Mouse Click: {click_type} at ({mx}, {my})", "INFO")
+
+    def start_card_drag(self, event, row, card, index):
+        self.drag_active = True
+        self.dragged_row = row
+        self.dragged_card = card
+        self.dragged_index = index
+        self.last_drag_y_root = event.y_root
+        
+        # Glow active card styling
+        card.configure(fg_color="#1d1d2b", border_color=self.color_accent)
+        
+        # Start edge auto-scroll loop
+        self.check_edge_scroll()
+
+    def motion_card_drag(self, event=None):
+        if not hasattr(self, "drag_active") or not self.drag_active:
+            return
+            
+        if event:
+            self.last_drag_y_root = event.y_root
+            
+        if not hasattr(self, "last_drag_y_root") or not self.dragged_row:
+            return
+            
+        if self.selected_rule_index is None: return
+        
+        actions = self.active_rules[self.selected_rule_index]["actions"]
+        
+        # Calculate Y relative to the scrollable frame's inner frame
+        try:
+            inner_frame = self.action_scroll._inner_frame
+            y = self.last_drag_y_root - inner_frame.winfo_rooty()
+            
+            rows = list(inner_frame.winfo_children())
+            # Filter rows to only include the ones representing actions
+            rows = [r for r in rows if isinstance(r, ctk.CTkFrame) and hasattr(r, "index_label")]
+            
+            if len(rows) <= 1:
+                return
+                
+            try:
+                current_idx = rows.index(self.dragged_row)
+            except ValueError:
+                return
+                
+            target_idx = current_idx
+            for i, r in enumerate(rows):
+                if r == self.dragged_row:
+                    continue
+                
+                ry = r.winfo_y()
+                rh = r.winfo_height()
+                r_center = ry + rh / 2
+                
+                if current_idx < i and y > r_center:
+                    target_idx = i
+                elif current_idx > i and y < r_center:
+                    target_idx = i
+                    
+            if target_idx != current_idx:
+                # Swap rows in the UI list representation
+                rows.remove(self.dragged_row)
+                rows.insert(target_idx, self.dragged_row)
+                
+                # Unpack and repack all rows in the new order
+                for r in rows:
+                    r.pack_forget()
+                for r in rows:
+                    r.pack(fill="x", pady=2, padx=5)
+                    
+                # Update the actual action index in the active rules data model
+                act = actions.pop(current_idx)
+                actions.insert(target_idx, act)
+                
+                # Dynamically update step index labels and connector lines
+                for idx, r in enumerate(rows):
+                    if hasattr(r, "index_label") and r.index_label:
+                        r.index_label.configure(text=str(idx + 1))
+                    
+                    if hasattr(r, "connector_line") and r.connector_line:
+                        if idx == len(rows) - 1:
+                            r.connector_line.pack_forget()
+                        else:
+                            r.connector_line.pack(fill="y", expand=True, pady=(2, 0))
+                            
+                # Keep track of the new index for logging
+                self.dragged_index = target_idx
+        except Exception as e:
+            # Silently catch any tk measurement glitches during rapid dragging
+            pass
+
+    def motion_card_drag_from_scroll(self):
+        # Triggered by auto-scroll
+        self.motion_card_drag(None)
+
+    def stop_card_drag(self, event):
+        self.drag_active = False
+        
+        # Log successful reordering
+        self.log_message("Timeline reordered successfully.", "SUCCESS")
+        
+        self.dragged_row = None
+        self.dragged_card = None
+        self.dragged_index = None
+        
+        # Perform a clean full re-render
+        self.render_action_list()
+
+    def check_edge_scroll(self):
+        if not hasattr(self, "drag_active") or not self.drag_active:
+            return
+            
+        try:
+            canvas = self.action_scroll._parent_canvas
+            canvas_y = canvas.winfo_rooty()
+            canvas_h = canvas.winfo_height()
+            
+            # Use root mouse Y (winfo_pointery) for robust stationary tracking
+            mouse_y = self.winfo_pointery()
+            rel_y = mouse_y - canvas_y
+            
+            # Scroll thresholds
+            scroll_margin = 35
+            scroll_speed = 0
+            
+            if 0 < rel_y < scroll_margin:
+                scroll_speed = -1
+            elif canvas_h - scroll_margin < rel_y < canvas_h + 30:
+                scroll_speed = 1
+                
+            if scroll_speed != 0:
+                canvas.yview_scroll(scroll_speed, "units")
+                self.motion_card_drag_from_scroll()
+        except Exception as e:
+            pass
+            
+        # Re-schedule the scroll check in 50ms
+        self.after(50, self.check_edge_scroll)
 
 if __name__ == "__main__":
     app = PixelAutomationApp()
