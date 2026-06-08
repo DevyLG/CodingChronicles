@@ -1,0 +1,62 @@
+{
+    "attack_strats": [
+        "**The VIP:** One person is the VIP. Everyone else must follow them in a single-file line and protect them at all costs.",
+        "**Hot Breach:** Everyone must rappel swing into a window at the exact same time.",
+        "**Drone Phase 2.0:** You cannot enter the building until your first drone is destroyed by a defender.",
+        "**Shield Wall:** Everyone who can bring a ballistic shield, brings a shield. Phalanx formation.",
+        "**Rush Hour:** Pick your fastest operators. You must enter the building within the first 15 seconds.",
+        "**Single File:** You must walk in a single file line. Only the person in the front is allowed to shoot.",
+        "**Shotguns Only:** Primary shotguns are mandatory. If your op doesn't have one, you must use a pistol.",
+        "**No Drone November:** Absolutely no droning during the prep or action phase. Go in completely blind.",
+        "**Pacifist Planter:** The defuser carrier cannot shoot their gun. Their only job is to survive and plant.",
+        "**Red Light, Green Light:** A dead teammate calls 'Red Light' and everyone must freeze immediately. 'Green Light' means you can move.",
+        "**Demo Crew:** You must destroy every single barricade and soft wall you pass before moving forward.",
+        "**The Buddy System:** You must pair up in teams of two. You cannot move more than 5 meters away from your assigned partner.",
+        "**Nade Or Nothing:** You can only secure kills using frag grenades or explosive gadgets.",
+        "**Protect the President:** The lowest scoring player is the President. They pick an op with a pistol. Everyone else plays shields and protects them.",
+        "**Door Dash:** You can only enter the building through the main front double doors."
+    ],
+    "defense_strats": [
+        "**Basement Dwellers:** Everyone anchors. Nobody is allowed to leave the objective rooms for any reason.",
+        "**The Roam Game:** Everyone deep roams. Nobody is allowed to anchor on site until the attackers start securing or planting.",
+        "**Trap House:** Pick Kapkan, Frost, Lesion, Thorn, etc. You can only get kills using traps or pistols.",
+        "**No Cams:** You are completely forbidden from looking at cameras, drones, or bulletproof cams this round.",
+        "**Hide and Seek:** Everyone hides in obscure corners across the map. You cannot shoot until they shoot you first.",
+        "**Open Concept:** Blow up every single soft wall on site during the prep phase. Absolutely zero reinforcements allowed.",
+        "**Fort Knox:** Reinforce every wall and barricade every door. You cannot leave the site once the prep phase ends.",
+        "**Nitro Cell Roulette:** No guns allowed. Kills can only be secured with C4.",
+        "**Musical Chairs:** Every 30 seconds, everyone must rotate and swap positions with another teammate.",
+        "**The Floor is Lava:** You must stand on top of a desk, counter, or piece of furniture. You cannot touch the bare floor.",
+        "**Spawn Peek Central:** Everyone must attempt a spawn peek at the start of the round.",
+        "**Silent Service:** Play Caveira, Vigil, Mute, etc. You are not allowed to sprint or make any loud noises.",
+        "**Medic Ward:** Pick Doc and Thunderbird. If anyone takes damage, they must drop everything and run back to site for a heal.",
+        "**Heavy Weights:** Pick all 3-armor operators. No fast movement allowed.",
+        "**No Defenses:** You are strictly forbidden from placing a single wooden barricade or wall reinforcement the entire round."
+    ],
+    "general_strats": [
+        "**Pistols Only:** Primary weapons are strictly forbidden. Time to go full John Wick.",
+        "**Hipfire Only:** Aiming Down Sights (ADS) is illegal. Spray and pray.",
+        "**No Sprinting:** The Shift key is lava. You must walk everywhere methodically.",
+        "**Bottom Frag Leads:** The person with the lowest score dictates every single move the team makes this round.",
+        "**Backwards Headset:** Everyone must wear their headset backwards. Left is right, right is left.",
+        "**Iron Sights:** Remove all optics from your weapons. Iron sights only.",
+        "**Prone Only:** Once the action phase starts, you are only allowed to crawl.",
+        "**One Tap Wonder:** Switch all primary weapons to single-fire mode. No full auto allowed.",
+        "**Knife Fight:** No bullets allowed. Melee attacks only.",
+        "**No Reloads:** You cannot press the reload key. You must shoot until the magazine is completely empty.",
+        "**Proximity Chat:** You can only talk in Discord if your in-game operator is in the exact same room as your teammate.",
+        "**Roleplay Mode:** You must do your absolute best impersonation of the operator you are playing whenever you speak in voice chat.",
+        "**Floor Inspector:** You must stare at the floor while moving. You can only look up when actively shooting at an enemy.",
+        "**The FOV Slider:** Set your Field of View to the lowest possible setting."
+    ],
+    "attack_ops": [
+        "Sledge", "Thatcher", "Ash", "Thermite", "Twitch", "Montagne", "Glaz", "Fuze", "Blitz", "IQ", "Buck", "Blackbeard", 
+        "Capitão", "Hibana", "Jackal", "Ying", "Zofia", "Dokkaebi", "Lion", "Finka", "Maverick", "Nomad", "Gridlock", "Nøkk", 
+        "Amaru", "Kali", "Iana", "Ace", "Zero", "Flores", "Osa", "Sens", "Grim", "Brava", "Ram", "Deimos", "Striker"
+    ],
+    "defense_ops": [
+        "Smoke", "Mute", "Castle", "Pulse", "Doc", "Rook", "Kapkan", "Tachanka", "Jäger", "Bandit", "Frost", "Valkyrie", 
+        "Caveira", "Echo", "Mira", "Lesion", "Ela", "Vigil", "Maestro", "Alibi", "Clash", "Kaid", "Mozzie", "Warden", 
+        "Goyo", "Wamai", "Oryx", "Melusi", "Aruni", "Thunderbird", "Thorn", "Azami", "Solis", "Fenrir", "Tubarão", "Skopos", "Sentry"
+    ]
+}
