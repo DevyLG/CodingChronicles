@@ -64,7 +64,7 @@ class SiegeRouletteView(discord.ui.View):
 
     # --- ROW 0: STRATEGY GENERATION ---
 
-    @discord.ui.button(label="Attack Strat", style=discord.ButtonStyle.primary, emoji="⚔️", row=0)
+    @discord.ui.button(label="Attack Strat", style=discord.ButtonStyle.primary, emoji="⚔️", row=0, custom_id="siege_btn_attack_strat")
     async def btn_attack_strat(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.bot.attack_strats:
             await interaction.response.send_message("Data Error: Strat arrays empty.", ephemeral=True)
@@ -82,7 +82,7 @@ class SiegeRouletteView(discord.ui.View):
         msg = await interaction.original_response()
         self.spawned_messages.append(msg)
 
-    @discord.ui.button(label="Defense Strat", style=discord.ButtonStyle.danger, emoji="🛡️", row=0)
+    @discord.ui.button(label="Defense Strat", style=discord.ButtonStyle.danger, emoji="🛡️", row=0, custom_id="siege_btn_defense_strat")
     async def btn_defense_strat(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.bot.defense_strats:
             await interaction.response.send_message("Data Error: Strat arrays empty.", ephemeral=True)
@@ -100,7 +100,7 @@ class SiegeRouletteView(discord.ui.View):
         msg = await interaction.original_response()
         self.spawned_messages.append(msg)
 
-    @discord.ui.button(label="Chaotic Strat", style=discord.ButtonStyle.secondary, emoji="🎲", row=0)
+    @discord.ui.button(label="Chaotic Strat", style=discord.ButtonStyle.secondary, emoji="🎲", row=0, custom_id="siege_btn_chaotic_strat")
     async def btn_chaotic_strat(self, interaction: discord.Interaction, button: discord.ui.Button):
         full_pool = self.bot.attack_strats + self.bot.defense_strats + self.bot.general_strats
         if not full_pool:
@@ -121,17 +121,17 @@ class SiegeRouletteView(discord.ui.View):
 
     # --- ROW 1: OPERATOR GENERATION ---
 
-    @discord.ui.button(label="Random Attack Ops", style=discord.ButtonStyle.primary, emoji="👥", row=1)
+    @discord.ui.button(label="Random Attack Ops", style=discord.ButtonStyle.primary, emoji="👥", row=1, custom_id="siege_btn_attack_ops")
     async def btn_attack_ops(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(OpCountModal(side="attack", dashboard_view=self))
 
-    @discord.ui.button(label="Random Defense Ops", style=discord.ButtonStyle.danger, emoji="👥", row=1)
+    @discord.ui.button(label="Random Defense Ops", style=discord.ButtonStyle.danger, emoji="👥", row=1, custom_id="siege_btn_defense_ops")
     async def btn_defense_ops(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(OpCountModal(side="defense", dashboard_view=self))
 
     # --- ROW 2: MAINTENANCE ---
     
-    @discord.ui.button(label="Clear Spam", style=discord.ButtonStyle.secondary, emoji="🧹", row=2)
+    @discord.ui.button(label="Clear Spam", style=discord.ButtonStyle.secondary, emoji="🧹", row=2, custom_id="siege_btn_clear_spam")
     async def btn_clear_spam(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         

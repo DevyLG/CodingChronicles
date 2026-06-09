@@ -1,13 +1,16 @@
 import asyncio
+import datetime
 import discord
 from discord import app_commands
 from discord.ext import commands
 from cogs.utils import check_is_allowed
 
 async def move_spam_loop(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel):
-    """Executes continuous voice channel oscillation for a targeted member."""
+    """Executes voice channel oscillation for a targeted member, capped to prevent API rate-limit bans."""
     current_channel = channel1 
-    while True:
+    max_moves = 15
+    moves = 0
+    while moves < max_moves:
         try:
             # Check if member is still connected to a voice channel
             if not member.voice or not member.voice.channel:
@@ -16,7 +19,8 @@ async def move_spam_loop(member: discord.Member, channel1: discord.VoiceChannel,
             target_channel = channel2 if current_channel.id == channel1.id else channel1
             current_channel = target_channel
             await member.edit(voice_channel=target_channel, reason="Automated move routine.")
-            await asyncio.sleep(2) 
+            moves += 1
+            await asyncio.sleep(4) 
         except asyncio.CancelledError:
             raise
         except (discord.NotFound, discord.HTTPException):
@@ -29,33 +33,33 @@ class ModerationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="mute", description="Enforces global silence (Chat & Voice).")
+    @app_commands.command(name="mute", description="Enforces global silence via native Discord timeout (default 60 mins).")
+    @app_commands.describe(duration_mins="Timeout duration in minutes (max 40320 / 28 days)")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @check_is_allowed()
-    async def mute(self, interaction: discord.Interaction, member: discord.Member):
-        self.bot.muted_members.add(member.id)
-        await self.bot.save_data()
-        if member.voice:
-            try: 
-                await member.edit(mute=True)
-            except discord.Forbidden: 
-                pass
-        await interaction.response.send_message(f"🤐 Silence protocol active: {member.mention}", ephemeral=True)
+    async def mute(self, interaction: discord.Interaction, member: discord.Member, duration_mins: int = 60):
+        if member.id == interaction.user.id or member.id == self.bot.user.id:
+            await interaction.response.send_message("Invalid member selection.", ephemeral=True)
+            return
+            
+        try:
+            duration = datetime.timedelta(minutes=duration_mins)
+            await member.timeout(duration, reason=f"Muted by {interaction.user}")
+            await interaction.response.send_message(f"🤐 Silence protocol active: {member.mention} timed out for {duration_mins} minutes.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Failed to enforce timeout. Inadequate permissions.", ephemeral=True)
 
-    @app_commands.command(name="unmute", description="Revokes global silence restriction.")
+    @app_commands.command(name="unmute", description="Revokes global silence restriction by removing native timeout.")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @check_is_allowed()
     async def unmute(self, interaction: discord.Interaction, member: discord.Member):
-        self.bot.muted_members.discard(member.id)
-        await self.bot.save_data()
-        if member.voice:
-            try: 
-                await member.edit(mute=False)
-            except discord.Forbidden: 
-                pass
-        await interaction.response.send_message(f"🗣️ Silence protocol terminated: {member.mention}", ephemeral=True)
+        try:
+            await member.timeout(None, reason=f"Unmuted by {interaction.user}")
+            await interaction.response.send_message(f"🗣️ Silence protocol terminated: {member.mention} has been unmuted.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Failed to remove timeout. Inadequate permissions.", ephemeral=True)
 
     @app_commands.command(name="move_spam", description="Initiates voice channel oscillation.")
     @app_commands.allowed_installs(guilds=True, users=False)
@@ -152,13 +156,6 @@ class ModerationCog(commands.Cog):
                 await member.edit(voice_channel=None)
             except discord.Forbidden:
                 pass
-            
-        if member.id in self.bot.muted_members and after.channel is not None:
-            if not after.mute:
-                try: 
-                    await member.edit(mute=True)
-                except discord.Forbidden: 
-                    pass
                     
         if after.channel is None and member.id in self.bot.spam_move_tasks:
             task = self.bot.spam_move_tasks.pop(member.id)
@@ -167,13 +164,6 @@ class ModerationCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author == self.bot.user: 
-            return
-            
-        if message.author.id in self.bot.muted_members:
-            try: 
-                await message.delete()
-            except discord.Forbidden: 
-                pass 
             return
 
         if message.channel.id in self.bot.reddit_mode_channels:

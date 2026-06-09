@@ -31,7 +31,6 @@ class MyBot(commands.Bot):
         self.reddit_mode_channels = set()
         self.smash_or_pass_channels = set()
         self.bot_admins = set()
-        self.muted_members = set()
         
         self.disabled_name_enforcements = set() 
         self.enabled_name_enforcements = set()  
@@ -59,12 +58,16 @@ class MyBot(commands.Bot):
             os.makedirs('./cogs')
             
         for filename in os.listdir('./cogs'):
-            if filename.endswith('.py') and filename != 'utils.py':
+            if filename.endswith('.py') and not filename.startswith('_') and filename != 'utils.py':
                 try:
                     await self.load_extension(f'cogs.{filename[:-3]}')
                     print(f"Loaded extension: {filename}")
                 except Exception as e:
                     print(f"Failed to load extension {filename}: {e}")
+
+        # Register persistent views
+        from cogs.siegeroulette import SiegeRouletteView
+        self.add_view(SiegeRouletteView(self))
 
     # --- Data Persistence Handlers (Non-Blocking) ---
     async def load_data(self):
@@ -80,10 +83,10 @@ class MyBot(commands.Bot):
         self.reddit_mode_channels = set(data.get("reddit_mode_channels", []))
         self.smash_or_pass_channels = set(data.get("smash_or_pass_channels", []))
         self.bot_admins = set(data.get("admins", []))
-        self.muted_members = set(data.get("muted_members", []))
         self.disabled_name_enforcements = set(data.get("disabled_name_enforcements", []))
         self.enabled_name_enforcements = set(data.get("enabled_name_enforcements", []))
         self.name_enforced_guilds = set(data.get("name_enforced_guilds", []))
+        self.name_enforcement_on = data.get("name_enforcement_on", False)
 
     async def save_data(self):
         def _save():
@@ -92,10 +95,10 @@ class MyBot(commands.Bot):
                 "reddit_mode_channels": list(self.reddit_mode_channels),
                 "smash_or_pass_channels": list(self.smash_or_pass_channels),
                 "admins": list(self.bot_admins),
-                "muted_members": list(self.muted_members),
                 "disabled_name_enforcements": list(self.disabled_name_enforcements),
                 "enabled_name_enforcements": list(self.enabled_name_enforcements),
-                "name_enforced_guilds": list(self.name_enforced_guilds)
+                "name_enforced_guilds": list(self.name_enforced_guilds),
+                "name_enforcement_on": self.name_enforcement_on
             }
             with open(DATA_FILE, 'w') as f:
                 json.dump(data, f, indent=4)

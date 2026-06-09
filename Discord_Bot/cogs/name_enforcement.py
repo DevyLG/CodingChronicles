@@ -14,7 +14,7 @@ class NameEnforcerCog(commands.GroupCog, name="name", description="Manage profil
     def cog_unload(self):
         self.enforce_nicknames_loop.cancel()
 
-    @tasks.loop(seconds=10)
+    @tasks.loop(minutes=5)
     async def enforce_nicknames_loop(self):
         """Polls target guilds to ensure enforced nicknames remain consistent."""
         for guild in self.bot.guilds:
@@ -95,9 +95,11 @@ class NameEnforcerCog(commands.GroupCog, name="name", description="Manage profil
                  await interaction.response.send_message("Invalid operation. Global flag cannot be reset.", ephemeral=True)
             elif state == "on":
                 self.bot.name_enforcement_on = True
+                await self.bot.save_data()
                 await interaction.response.send_message("🟢 Global enforcement flag: TRUE.", ephemeral=True)
             elif state == "off":
                 self.bot.name_enforcement_on = False
+                await self.bot.save_data()
                 await interaction.response.send_message("🔴 Global enforcement flag: FALSE.", ephemeral=True)
 
     @app_commands.command(name="server", description="Modifies server-level enforcement permissions.")
