@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Drop Probability & Farming Calculator</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent-primary: #3b82f6;
+            --accent-primary-glow: rgba(59, 130, 246, 0.35);
+            --accent-success: #10b981;
+            --accent-success-glow: rgba(16, 185, 129, 0.35);
+            --accent-cyan: #06b6d4;
+            --accent-cyan-glow: rgba(6, 182, 212, 0.35);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding: 2.5rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 50%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.05em;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        @media (min-width: 968px) {
+            main {
+                grid-template-columns: 4.5fr 5.5fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+            transition: transform var(--transition-speed), border-color var(--transition-speed);
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-with-slider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent-primary-glow);
+            transition: background var(--transition-speed);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--accent-cyan);
+        }
+
+        .num-input-wrapper {
+            position: relative;
+            width: 100px;
+        }
+
+        .num-input-wrapper::after {
+            content: '%';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: var(--text-main);
+            padding: 10px 24px 10px 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+        }
+
+        input[type="number"]:focus, input[type="text"]:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 8px var(--accent-primary-glow);
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .time-box {
+            text-align: center;
+        }
+
+        .time-box span {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Stopwatch Section */
+        .stopwatch-container {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stopwatch-display {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.25rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 1rem 0;
+            color: var(--text-main);
+            background: #0f172a;
+            padding: 0.75rem;
+            border-radius: 12px;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            letter-spacing: 0.05em;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        button {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--transition-speed), transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: #fff;
+        }
+        .btn-primary:hover { background: #2563eb; }
+
+        .btn-secondary {
+            background: #334155;
+            color: var(--text-main);
+        }
+        .btn-secondary:hover { background: #475569; }
+
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+        }
+        .btn-danger:hover { background: #dc2626; }
+
+        .btn-success {
+            background: var(--accent-success);
+            color: #fff;
+            box-shadow: 0 4px 12px var(--accent-success-glow);
+        }
+        .btn-success:hover { background: #059669; }
+
+        /* Results Display */
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (min-width: 480px) {
+            .results-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .result-box {
+            background: #0f172a;
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.25rem;
+            font-weight: 700;
+        }
+
+        .result-runs { color: var(--accent-success); }
+        .result-time { color: var(--accent-cyan); }
+
+        .chart-wrapper {
+            margin-top: 1.5rem;
+            background: #0f172a;
+            border-radius: 16px;
+            padding: 1.25rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            height: 280px;
+            width: 100%;
+        }
+
+        footer {
+            margin-top: 3rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🎯 Drop Probability & Farming Calculator</h1>
+        <p class="subtitle">Estimate your target farming run count and total time with a live mission stopwatch.</p>
+    </header>
+
+    <main>
+        <!-- Left Panel: Calculator Controls -->
+        <section class="card">
+            <h2>⚙️ Farm Settings</h2>
+            
+            <div class="input-group">
+                <label for="success-range">Target Confidence / Success Chance</label>
+                <div class="input-with-slider">
+                    <input type="range" id="success-range" min="10" max="99.9" step="0.1" value="90">
+                    <div class="num-input-wrapper">
+                        <input type="number" id="success-num" min="10" max="99.99" step="0.1" value="90">
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="drop-range">Item Drop Chance per Run</label>
+                <div class="input-with-slider">
+                    <input type="range" id="drop-range" min="0.1" max="99" step="0.1" value="5">
+                    <div class="num-input-wrapper">
+                        <input type="number" id="drop-num" min="0.0001" max="99.9" step="0.1" value="5">
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Mission / Run Duration</label>
+                <div class="time-inputs">
+                    <div class="time-box">
+                        <input type="number" id="time-hours" min="0" value="0">
+                        <span>Hours</span>
+                    </div>
+                    <div class="time-box">
+                        <input type="number" id="time-mins" min="0" max="59" value="5">
+                        <span>Minutes</span>
+                    </div>
+                    <div class="time-box">
+                        <input type="number" id="time-secs" min="0" max="59" value="0">
+                        <span>Seconds</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stopwatch/Timer -->
+            <div class="stopwatch-container">
+                <label>⏱️ Live Run Stopwatch</label>
+                <div class="stopwatch-display" id="sw-display">00:00:00</div>
+                <div class="btn-group">
+                    <button class="btn-primary" id="btn-sw-start">Start</button>
+                    <button class="btn-secondary" id="btn-sw-reset">Reset</button>
+                    <button class="btn-success" id="btn-sw-capture">Capture Run Time</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Farming Estimates & Probabilities -->
+        <section class="card">
+            <h2>📊 farming Estimates</h2>
+            
+            <div class="results-container">
+                <div class="result-box">
+                    <div class="result-label">Runs Needed</div>
+                    <div class="result-value result-runs" id="res-runs">45</div>
+                </div>
+                <div class="result-box">
+                    <div class="result-label">Total Duration</div>
+                    <div class="result-value result-time" id="res-time">03:45:00</div>
+                </div>
+            </div>
+
+            <h2>📈 Probability Progression Curve</h2>
+            <div class="chart-wrapper">
+                <canvas id="progressionChart"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        Coding Chronicles &copy; 2026 - Designed for dedicated farmers.
+    </footer>
+
+    <script>
+        // DOM Nodes
+        const successRange = document.getElementById('success-range');
+        const successNum = document.getElementById('success-num');
+        const dropRange = document.getElementById('drop-range');
+        const dropNum = document.getElementById('drop-num');
+        const timeHours = document.getElementById('time-hours');
+        const timeMins = document.getElementById('time-mins');
+        const timeSecs = document.getElementById('time-secs');
+        
+        const resRuns = document.getElementById('res-runs');
+        const resTime = document.getElementById('res-time');
+
+        // Stopwatch variables
+        let timer = null;
+        let elapsedMilliseconds = 0;
+        const swDisplay = document.getElementById('sw-display');
+        const btnSwStart = document.getElementById('btn-sw-start');
+        const btnSwReset = document.getElementById('btn-sw-reset');
+        const btnSwCapture = document.getElementById('btn-sw-capture');
+
+        // Chart reference
+        let chartInstance = null;
+
+        // Initialize UI synchronization
+        function linkInputs(slider, numInput, callback) {
+            slider.addEventListener('input', (e) => {
+                numInput.value = e.target.value;
+                callback();
+            });
+            numInput.addEventListener('input', (e) => {
+                let val = parseFloat(e.target.value);
+                if (isNaN(val)) return;
+                
+                const minVal = parseFloat(slider.min);
+                const maxVal = parseFloat(slider.max);
+                if (val < minVal) val = minVal;
+                if (val > maxVal) val = maxVal;
+                
+                slider.value = val;
+                callback();
+            });
+        }
+
+        linkInputs(successRange, successNum, calculate);
+        linkInputs(dropRange, dropNum, calculate);
+
+        [timeHours, timeMins, timeSecs].forEach(elem => {
+            elem.addEventListener('input', calculate);
+        });
+
+        // Stopwatch functions
+        function updateStopwatchDisplay() {
+            let totalSecs = Math.floor(elapsedMilliseconds / 1000);
+            let hours = Math.floor(totalSecs / 3600);
+            let minutes = Math.floor((totalSecs % 3600) / 60);
+            let seconds = totalSecs % 60;
+            
+            swDisplay.textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        btnSwStart.addEventListener('click', () => {
+            if (timer) {
+                // Pause
+                clearInterval(timer);
+                timer = null;
+                btnSwStart.textContent = "Resume";
+                btnSwStart.classList.replace('btn-danger', 'btn-primary');
+            } else {
+                // Start
+                let start = Date.now() - elapsedMilliseconds;
+                timer = setInterval(() => {
+                    elapsedMilliseconds = Date.now() - start;
+                    updateStopwatchDisplay();
+                }, 100);
+                btnSwStart.textContent = "Pause";
+                btnSwStart.classList.replace('btn-primary', 'btn-danger');
+            }
+        });
+
+        btnSwReset.addEventListener('click', () => {
+            clearInterval(timer);
+            timer = null;
+            elapsedMilliseconds = 0;
+            updateStopwatchDisplay();
+            btnSwStart.textContent = "Start";
+            btnSwStart.className = "btn-primary";
+        });
+
+        btnSwCapture.addEventListener('click', () => {
+            let totalSecs = Math.floor(elapsedMilliseconds / 1000);
+            if (totalSecs <= 0) return;
+            
+            let hours = Math.floor(totalSecs / 3600);
+            let minutes = Math.floor((totalSecs % 3600) / 60);
+            let seconds = totalSecs % 60;
+
+            timeHours.value = hours;
+            timeMins.value = minutes;
+            timeSecs.value = seconds;
+
+            calculate();
+        });
+
+        // Core Calculation
+        function calculate() {
+            const P_target = parseFloat(successNum.value) / 100;
+            const P_drop = parseFloat(dropNum.value) / 100;
+
+            if (isNaN(P_target) || isNaN(P_drop) || P_drop <= 0 || P_target >= 1) return;
+
+            // runs = ceil(log(1 - P_target) / log(1 - P_drop))
+            const runs = Math.ceil(Math.log(1 - P_target) / Math.log(1 - P_drop));
+
+            // Mission time math
+            const hours = parseInt(timeHours.value) || 0;
+            const mins = parseInt(timeMins.value) || 0;
+            const secs = parseInt(timeSecs.value) || 0;
+
+            const runTimeSeconds = hours * 3600 + mins * 60 + secs;
+            const totalSecsNeeded = runs * runTimeSeconds;
+
+            const totalHours = Math.floor(totalSecsNeeded / 3600);
+            const totalMins = Math.floor((totalSecsNeeded % 3600) / 60);
+            const totalSecs = totalSecsNeeded % 60;
+
+            resRuns.textContent = runs.toLocaleString();
+            resTime.textContent = 
+                `${String(totalHours).padStart(2, '0')}:${String(totalMins).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`;
+
+            drawChart(P_drop, runs);
+        }
+
+        // Progression Line Chart Drawing
+        function drawChart(dropChance, targetRuns) {
+            const ctx = document.getElementById('progressionChart').getContext('2d');
+            
+            const labels = [];
+            const data = [];
+            
+            // Set up a dynamic step interval for the chart labels
+            const step = Math.max(1, Math.ceil(targetRuns / 10));
+            
+            for (let i = 1; i <= targetRuns; i += step) {
+                labels.push(i);
+                // Chance of hitting at least once in i runs: 1 - (1 - dropChance)^i
+                const prob = (1 - Math.pow(1 - dropChance, i)) * 100;
+                data.push(parseFloat(prob.toFixed(2)));
+            }
+
+            // Always add the final target run data point if not present
+            if (labels[labels.length - 1] !== targetRuns) {
+                labels.push(targetRuns);
+                const finalProb = (1 - Math.pow(1 - dropChance, targetRuns)) * 100;
+                data.push(parseFloat(finalProb.toFixed(2)));
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Confidence Level (%)',
+                        data: data,
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#3b82f6',
+                        fill: true,
+                        tension: 0.35
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' },
+                            title: { display: true, text: 'Number of Runs', color: '#94a3b8' }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: value => value + '%'
+                            },
+                            title: { display: true, text: 'Chance of Success', color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize calculations
+        calculate();
+    </script>
+</body>
+</html>

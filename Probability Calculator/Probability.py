@@ -1,18 +1,17 @@
 import math, os
-import keyboard as kb
-from colorama import Fore, Back, Style
+import sys
+import argparse
+from colorama import Fore, Back, Style, init
 
-
-
-
-
+# Initialize colorama
+init(autoreset=True)
 
 def calculate_runs(success_chance, drop_chance, mission_time):
     """
     Calculate the number of runs and time needed to achieve the desired success chance.
     
     Parameters:
-    - success_chance (float): The target success probability (e.g., 0.99 for 99%).
+    - success_chance (float): The target success probability (e.g., 0.90 for 90%).
     - drop_chance (float): The drop chance for each run (e.g., 0.05 for 5%).
     - mission_time (tuple): Time for each mission in (hours, minutes, seconds).
     
@@ -32,8 +31,6 @@ def calculate_runs(success_chance, drop_chance, mission_time):
     total_time = (total_time_hours, int(total_time_minutes), total_time_seconds)
     return runs, total_time
 
-
-
 def get_number_input(prompt, default, min_value=0):
     """Gets user input, ensuring it's a valid number within a valid range."""
     while True:
@@ -47,10 +44,45 @@ def get_number_input(prompt, default, min_value=0):
         except ValueError:
             print(Fore.RED + "Invalid input! Please enter a number." + Style.RESET_ALL)
 
-
-
+def parse_time_string(time_str):
+    """Parses a time string in format HH:MM:SS or MM:SS or raw minutes."""
+    parts = time_str.strip().split(':')
+    try:
+        if len(parts) == 3:
+            return int(parts[0]), int(parts[1]), int(parts[2])
+        elif len(parts) == 2:
+            return 0, int(parts[0]), int(parts[1])
+        elif len(parts) == 1:
+            return 0, int(parts[0]), 0
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError("Time must be in format 'HH:MM:SS' or 'MM:SS' or integer minutes.")
 
 def main():
+    parser = argparse.ArgumentParser(description="Probability & Drop Run Calculator")
+    parser.add_argument('-s', '--success', type=float, help="Target success chance in percentage (e.g. 90 for 90%)")
+    parser.add_argument('-d', '--drop', type=float, help="Drop chance per run in percentage (e.g. 5 for 5%)")
+    parser.add_argument('-t', '--time', type=parse_time_string, help="Mission duration in format 'HH:MM:SS' or 'MM:SS' or minutes")
+    
+    args = parser.parse_args()
+    
+    # If any command-line argument is passed, process non-interactively
+    if args.success is not None or args.drop is not None:
+        success_val = args.success if args.success is not None else 90.0
+        drop_val = args.drop if args.drop is not None else 5.0
+        mission_time = args.time if args.time is not None else (0, 0, 0)
+        
+        # Validate constraints
+        success_chance = min(max(success_val, 10.0), 99.99) / 100
+        drop_chance = min(max(drop_val, 0.0001), 99.99) / 100
+        
+        runs, total_time = calculate_runs(success_chance, drop_chance, mission_time)
+        
+        print(Fore.GREEN + f"Number of runs needed: {runs:,}")
+        print(Fore.CYAN + f"Total time needed: {int(total_time[0]):02d}:{int(total_time[1]):02d}:{int(total_time[2]):02d}")
+        return
+
+    # Fall back to interactive mode
     print("""How to use:
 1. Enter the success chance in percentage (e.g., 90).
 2. Enter the drop chance in percentage (e.g., 5).
@@ -85,13 +117,9 @@ For example, if you want to have at least a 90% chance of getting the drop, ente
     
     print(Fore.GREEN + f"Number of runs needed: {runs:,}" + Style.RESET_ALL)
     print(Fore.CYAN + f"Total time needed: {int(total_time[0]):02d}:{int(total_time[1]):02d}:{int(total_time[2]):02d}" + Style.RESET_ALL)
-    print("\n" * 5)
+    print("\n" * 2)
     
-    
-    kb.wait('enter')
-
-
+    input(Fore.YELLOW + "Press Enter to exit..." + Style.RESET_ALL)
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
     main()
