@@ -1,4 +1,29 @@
-# Discord Bot specific ignores
-Discord_Bot/venv/
-Discord_Bot/bot_data.json
-Discord_Bot/token.token
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE and Editor configs
+.vscode/
+.idea/
+
+# PyInstaller / Build outputs
+build/
+dist/
+*.spec
+
+# Sensitive configuration files (Discord tokens, keys)
+.env
+*.env
+
+# Local database / state files (User & Guild IDs, dynamic registry data)
+bot_data.json
+names.json
+names.json.bak
+*.json.bak
