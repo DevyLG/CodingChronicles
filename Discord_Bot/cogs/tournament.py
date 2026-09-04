@@ -61,11 +61,14 @@ class TournamentView(discord.ui.View):
         self.clear_items()
         
         for i, match in enumerate(self.matches):
-            label = f"Match {i+1}: {match[0]} vs {match[1]}"
             if match[2] is not None:
                 label = f"✅ Winner: {match[match[2]]}"
+                style = discord.ButtonStyle.success
+            else:
+                label = f"Match {i+1}: {match[0]} vs {match[1]}"
+                style = discord.ButtonStyle.secondary
             
-            btn = discord.ui.Button(label=label, style=discord.ButtonStyle.primary, row=i // 2)
+            btn = discord.ui.Button(label=label, style=style, row=i // 2)
             btn.callback = self.make_callback(i)
             self.add_item(btn)
 
@@ -111,16 +114,25 @@ class TournamentView(discord.ui.View):
         self.msg_history.append(new_msg)
 
     def make_embed(self):
-        desc = f"**Current Teams:** {len(self.teams)}\n\n"
+        embed = discord.Embed(title=f"🏆 Tournament: Round {self.round_num}", color=discord.Color.gold())
+        embed.description = f"**Total Teams**: {len(self.teams)}"
+        
+        matches_text = ""
         for i, m in enumerate(self.matches):
-            winner_text = f" -> 🏆 **{m[m[2]]}**" if m[2] is not None else ""
-            desc += f"**Match {i+1}:** {m[0]} vs {m[1]}{winner_text}\n"
+            if m[2] is not None:
+                matches_text += f"⭐ **Match {i+1}**: {m[0]} vs {m[1]} ➔ 🏆 **{m[m[2]]}**\n"
+            else:
+                matches_text += f"⚔️ **Match {i+1}**: {m[0]} vs {m[1]}\n"
+                
+        if not matches_text:
+            matches_text = "No matches this round."
+            
+        embed.add_field(name="⚔️ Matchups", value=matches_text, inline=False)
         
         byes = [t for t in self.teams if t not in [m[0] for m in self.matches] and t not in [m[1] for m in self.matches]]
         if byes:
-            desc += f"\n🛡️ **Byes (Advance Automatically):** {', '.join(byes)}"
-
-        embed = discord.Embed(title=f"🏆 Tournament: Round {self.round_num}", description=desc, color=0xFFD700)
+            embed.add_field(name="🛡️ Byes (Auto-Advance)", value="\n".join(f"• {b}" for b in byes), inline=False)
+            
         return embed
 
 class TournamentCog(commands.Cog):
@@ -128,15 +140,47 @@ class TournamentCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="tournament", description="Initializes an interactive bracket manager.")
-    @app_commands.describe(players="Comma-separated roster", team_size="Participants per team construct (Integer)")
+    @app_commands.describe(
+        players="Comma-separated roster of player names (Optional if use_voice is True)",
+        team_size="Participants per team construct (Integer, Defaults to 1)",
+        use_voice="Automatically pull player names from your current voice channel"
+    )
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-    async def tournament(self, interaction: discord.Interaction, players: str, team_size: int = 1):
-        player_list = [p.strip() for p in players.split(',') if p.strip()]
-        if len(player_list) < 2:
-            await interaction.response.send_message("Insufficient roster parameters.", ephemeral=True)
-            return
+    async def tournament(self, interaction: discord.Interaction, players: str = None, team_size: int = 1, use_voice: bool = False):
+        player_list = []
+        
+        # 1. Handle Voice Channel Import
+        member = None
+        if use_voice:
+            if not interaction.guild:
+                await interaction.response.send_message("❌ Voice import can only be used inside a server channel.", ephemeral=True)
+                return
+                
+            member = interaction.guild.get_member(interaction.user.id)
+            if not member or not member.voice or not member.voice.channel:
+                await interaction.response.send_message("❌ You must be connected to a voice channel to import players.", ephemeral=True)
+                return
+                
+            player_list = [m.display_name for m in member.voice.channel.members if not m.bot]
             
+        # 2. Handle Manual Input
+        if players:
+            manual_list = [p.strip() for p in players.replace(';', ',').replace('\n', ',').split(',') if p.strip()]
+            player_list.extend(manual_list)
+            
+        # Remove duplicates
+        seen = set()
+        player_list = [x for x in player_list if not (x in seen or seen.add(x))]
+        
+        if len(player_list) < 2:
+            await interaction.response.send_message("❌ Insufficient player names. Please enter at least 2 players or import from voice.", ephemeral=True)
+            return
+ 
+        if team_size < 1:
+            await interaction.response.send_message("❌ Team size must be at least 1.", ephemeral=True)
+            return
+ 
         random.shuffle(player_list)
         
         teams = []
@@ -144,9 +188,22 @@ class TournamentCog(commands.Cog):
             chunk = player_list[i:i + team_size]
             teams.append(" & ".join(chunk))
 
+        if len(teams) < 2:
+            await interaction.response.send_message("❌ You need at least 2 teams to start a tournament. Decrease the team size or add more players.", ephemeral=True)
+            return
+
+        if len(teams) > 32:
+            await interaction.response.send_message("❌ Maximum number of teams supported is 32 to prevent Discord formatting limits.", ephemeral=True)
+            return
+
         history = []
         view = TournamentView(teams, host_id=interaction.user.id, msg_history=history)
-        await interaction.response.send_message(embed=view.make_embed(), view=view)
+        embed = view.make_embed()
+        
+        if use_voice and member and member.voice and member.voice.channel:
+            embed.set_footer(text=f"Imported from voice channel: {member.voice.channel.name}")
+            
+        await interaction.response.send_message(embed=embed, view=view)
         
         first_msg = await interaction.original_response()
         history.append(first_msg)

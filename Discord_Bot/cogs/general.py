@@ -15,7 +15,8 @@ class GeneralCog(commands.Cog):
         embed.add_field(name="🏷️ Data Management", value="`/name change`, `/name toggle`, `/name server`", inline=False)
         embed.add_field(name="⚙️ Environment Hooks", value="`/redditmode`, `/smashorpass`", inline=False)
         embed.add_field(name="👻 Disruption", value="`/move_spam`, `/unmove`, `/voiceban`, `/unvoiceban`, `/mute`, `/unmute`", inline=False)
-        embed.add_field(name="🎲 Evaluators", value="`/roll`, `/choose`, `/coin`, `/userinfo`, `/tournament`, `/siegeroulette`", inline=False)
+        embed.add_field(name="🎲 Evaluators", value="`/roll`, `/choose`, `/coin`, `/whois`, `/serverinfo`, `/tournament`, `/siegeroulette`", inline=False)
+        embed.add_field(name="🔊 Voice & Reminders", value="`/tempvoice setup`, `/tempvoice remove`, `/remind`", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
